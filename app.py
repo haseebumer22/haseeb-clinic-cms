@@ -36,6 +36,8 @@ def init_database():
                 ))
             db.session.commit()
 
+init_database()
+
 def calculate_next_token():
     """Calculate the sequential token number for today's visits."""
     today_start = datetime.combine(date.today(), datetime.min.time())
