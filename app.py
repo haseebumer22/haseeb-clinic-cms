@@ -14,9 +14,10 @@ app.config["SECRET_KEY"] = "haseeb-clinic-secret-key-2026-very-secure"
 # Database Configuration (Supabase PostgreSQL or fallback SQLite)
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
-    # Supabase / cloud providers often use 'postgres://' which SQLAlchemy requires as 'postgresql://'
     if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
+        database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
+    elif database_url.startswith("postgresql://") and not database_url.startswith("postgresql+"):
+        database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 elif os.environ.get("VERCEL"):
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:////tmp/clinic.db"
