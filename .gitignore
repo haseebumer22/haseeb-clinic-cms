@@ -7,3 +7,5 @@ __pycache__/
 .vercel
 venv/
 .system_generated/
+
+.vercel
