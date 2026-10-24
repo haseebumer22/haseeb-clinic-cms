@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Patient Directory — Clinic Management System{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold mb-1 text-dark">
+            <i class="bi bi-people-fill text-primary me-2"></i> Patient Directory & Records
+        </h3>
+        <p class="text-muted small mb-0">Browse all registered clinic patients, check medical visit histories, and create returning visits.</p>
+    </div>
+    <a href="{{ url_for('index') }}" class="btn btn-primary-clinic">
+        <i class="bi bi-person-plus-fill me-1"></i> Register New Patient
+    </a>
+</div>
+
+<!-- Search & Filter Card -->
+<div class="clinic-card mb-4">
+    <div class="clinic-card-body p-3">
+        <form action="{{ url_for('patients') }}" method="GET" class="row g-2 align-items-center">
+            <div class="col-md-9">
+                <div class="input-group">
+                    <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
+                    <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Search by Patient Name, MR Number (e.g. MR-000001), or Phone Number...">
+                </div>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary-clinic flex-grow-1">
+                    <i class="bi bi-filter"></i> Search
+                </button>
+                {% if query %}
+                    <a href="{{ url_for('patients') }}" class="btn btn-outline-secondary">
+                        Clear
+                    </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Patients Table Card -->
+<div class="clinic-card">
+    <div class="clinic-card-header">
+        <div class="d-flex align-items-center gap-2">
+            <h5 class="clinic-card-title">Registered Patients</h5>
+            <span class="badge bg-secondary-subtle text-secondary">{{ patients|length }} Records</span>
+        </div>
+        {% if query %}
+            <span class="small text-muted">Showing results matching "<strong>{{ query }}</strong>"</span>
+        {% endif %}
+    </div>
+    <div class="clinic-card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">MR Number</th>
+                        <th>Patient Name</th>
+                        <th>Age & Gender</th>
+                        <th>Phone</th>
+                        <th>Blood Group</th>
+                        <th>Total Visits</th>
+                        <th>First Registered</th>
+                        <th class="text-end pe-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if patients %}
+                        {% for p in patients %}
+                            <tr>
+                                <td class="ps-3">
+                                    <span class="badge-mr">{{ p.mr_number }}</span>
+                                </td>
+                                <td>
+                                    <strong class="text-dark">{{ p.patient_name }}</strong>
+                                    {% if p.address %}
+                                        <div class="text-muted small"><i class="bi bi-geo-alt"></i> {{ p.address }}</div>
+                                    {% endif %}
+                                </td>
+                                <td>{{ p.age }} yrs &bull; {{ p.gender }}</td>
+                                <td><i class="bi bi-telephone text-muted me-1"></i>{{ p.phone_number }}</td>
+                                <td>
+                                    {% if p.blood_group and p.blood_group != 'N/A' %}
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">{{ p.blood_group }}</span>
+                                    {% else %}
+                                        <span class="text-muted small">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
+                                        {{ p.visits|length }} Visits
+                                    </span>
+                                </td>
+                                <td class="text-muted small">
+                                    {{ p.created_at.strftime("%d %b %Y") }}
+                                </td>
+                                <td class="text-end pe-3">
+                                    <div class="btn-group btn-group-sm">
+                                        <!-- Quick Visit Button -->
+                                        <button type="button" class="btn btn-outline-primary" onclick="openQuickVisitModal('{{ p.id }}', '{{ p.mr_number }}', '{{ p.patient_name|escape }}')">
+                                            <i class="bi bi-plus-circle me-1"></i> New Visit
+                                        </button>
+                                        <!-- View History Modal Trigger -->
+                                        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#historyModal{{ p.id }}">
+                                            <i class="bi bi-journal-medical"></i> History
+                                        </button>
+                                    </div>
+
+                                    <!-- History Modal for this patient -->
+                                    <div class="modal fade" id="historyModal{{ p.id }}" tabindex="-1" aria-hidden="true" style="text-align: left;">
+                                        <div class="modal-dialog modal-lg modal-dialog-centered">
+                                            <div class="modal-content">
+                                                <div class="modal-header bg-light">
+                                                    <div>
+                                                        <h5 class="modal-title fw-bold text-dark mb-0">
+                                                            <i class="bi bi-journal-medical text-primary me-2"></i>Visit History — {{ p.patient_name }}
+                                                        </h5>
+                                                        <span class="badge-mr mt-1 d-inline-block">{{ p.mr_number }}</span>
+                                                    </div>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                </div>
+                                                <div class="modal-body p-0">
+                                                    <div class="table-responsive">
+                                                        <table class="table table-striped align-middle mb-0">
+                                                            <thead class="table-light">
+                                                                <tr>
+                                                                    <th class="ps-3">Date & Time</th>
+                                                                    <th>Token</th>
+                                                                    <th>Doctor</th>
+                                                                    <th>Department</th>
+                                                                    <th>Reason / Complaint</th>
+                                                                    <th>Fee</th>
+                                                                    <th>Action</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {% for v in p.visits %}
+                                                                    <tr>
+                                                                        <td class="ps-3 text-muted small">
+                                                                            {{ v.visit_datetime.strftime("%d %b %Y, %I:%M %p") }}
+                                                                        </td>
+                                                                        <td><span class="badge-token">#{{ v.token_number }}</span></td>
+                                                                        <td class="fw-semibold">{{ v.doctor_name }}</td>
+                                                                        <td class="small">{{ v.department }}</td>
+                                                                        <td class="small">{{ v.symptoms or 'General Checkup' }}</td>
+                                                                        <td class="text-success fw-bold">Rs. {{ "%.0f"|format(v.fee) }}</td>
+                                                                        <td>
+                                                                            <a href="{{ url_for('print_slip', visit_id=v.id, auto=0) }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                                                                <i class="bi bi-printer"></i> Slip
+                                                                            </a>
+                                                                        </td>
+                                                                    </tr>
+                                                                {% endfor %}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer bg-light">
+                                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                                                    <button type="button" class="btn btn-primary-clinic btn-sm" data-bs-dismiss="modal" onclick="openQuickVisitModal('{{ p.id }}', '{{ p.mr_number }}', '{{ p.patient_name|escape }}')">
+                                                        <i class="bi bi-calendar-plus me-1"></i> Book Another Visit
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center py-5 text-muted">
+                                <i class="bi bi-folder-x fs-1 d-block mb-2"></i>
+                                No patient records found.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Reusable Quick Visit Modal -->
+<div class="modal fade" id="quickVisitModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <div>
+                    <h5 class="modal-title fw-bold text-dark mb-0">Book Returning Visit</h5>
+                    <div class="d-flex align-items-center gap-2 mt-1">
+                        <span class="badge-mr" id="modal_patient_mr">MR-XXXXXX</span>
+                        <strong class="text-primary" id="modal_patient_name">Patient Name</strong>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('new_visit') }}" method="POST">
+                <input type="hidden" name="patient_id" id="modal_patient_id">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="modal_doctor">Assign Consulting Doctor <span class="text-danger">*</span></label>
+                        <select class="form-select" id="modal_doctor" name="doctor" required>
+                            {% for doc in doctors %}
+                                <option value="{{ doc.name }}">{{ doc.name }} ({{ doc.specialty }}) — Rs. {{ "%.0f"|format(doc.fee) }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="modal_symptoms">Chief Complaints / Reason for Visit</label>
+                        <input type="text" class="form-control" id="modal_symptoms" name="symptoms" placeholder="e.g. Follow-up consultation, medication review">
+                    </div>
+                    <div class="alert alert-secondary small mb-0">
+                        <i class="bi bi-info-circle me-1"></i> Submitting will issue today's next sequential queue token and print the appointment slip.
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-clinic btn-sm">
+                        <i class="bi bi-printer-fill me-1"></i> Issue Token & Print Slip
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

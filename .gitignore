@@ -1,0 +1,9 @@
+instance/
+*.db
+*.sqlite3
+__pycache__/
+*.pyc
+.env
+.vercel
+venv/
+.system_generated/

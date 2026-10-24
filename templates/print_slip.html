@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration Slip — {{ patient.mr_number }} — {{ patient.patient_name }}</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        @page {
+            size: auto;
+            margin: 8mm;
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+    <!-- Print Control Bar (Hidden on actual print) -->
+    <div class="container py-3 no-print">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 p-3 bg-white rounded-3 shadow-sm border">
+            <div class="d-flex align-items-center gap-2">
+                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left"></i> Back to Reception
+                </a>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-primary active" id="btnA5" onclick="toggleSlipFormat('a5')">
+                        <i class="bi bi-file-earmark-text"></i> Standard (A5)
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="btnThermal" onclick="toggleSlipFormat('thermal')">
+                        <i class="bi bi-receipt"></i> Thermal (80mm)
+                    </button>
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <button onclick="window.print()" class="btn btn-primary-clinic btn-sm">
+                    <i class="bi bi-printer-fill me-1"></i> Print Slip (Ctrl + P)
+                </button>
+                <a href="{{ url_for('index') }}" class="btn btn-success btn-sm fw-semibold">
+                    <i class="bi bi-person-plus-fill me-1"></i> Next Patient
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- The Registration Slip Document -->
+    <div class="slip-container">
+        <!-- Clinic Header -->
+        <div class="slip-header">
+            <div class="slip-clinic-name">HASEEB HEALTH CLINIC</div>
+            <div class="slip-clinic-sub">Walk-In OPD &bull; Reception Counter &bull; Ph: (042) 3500-1122</div>
+            <div class="mt-2">
+                <span class="slip-title-pill">OPD REGISTRATION SLIP</span>
+            </div>
+        </div>
+
+        <!-- Token Banner -->
+        <div class="slip-token-banner">
+            <div>
+                <span class="text-muted small text-uppercase fw-bold d-block">Queue Token</span>
+                <span class="token-big">#{{ "%02d"|format(visit.token_number) }}</span>
+            </div>
+            <div class="text-end">
+                <span class="badge-mr fs-6 mb-1 d-inline-block">{{ patient.mr_number }}</span>
+                <div class="text-muted small">
+                    <i class="bi bi-calendar-event me-1"></i>{{ visit.visit_datetime.strftime("%d %b %Y, %I:%M %p") }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Patient & Visit Details Table -->
+        <table class="table slip-table mb-2">
+            <tbody>
+                <tr>
+                    <th>Patient Name:</th>
+                    <td class="fs-5 text-primary">{{ patient.patient_name }}</td>
+                </tr>
+                <tr>
+                    <th>Age / Gender:</th>
+                    <td>{{ patient.age }} Years &bull; {{ patient.gender }}</td>
+                </tr>
+                <tr>
+                    <th>Contact Phone:</th>
+                    <td>{{ patient.phone_number }}</td>
+                </tr>
+                {% if patient.blood_group and patient.blood_group != 'N/A' %}
+                <tr>
+                    <th>Blood Group:</th>
+                    <td><span class="badge bg-danger-subtle text-danger border border-danger-subtle">{{ patient.blood_group }}</span></td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <th>Consulting Doctor:</th>
+                    <td>
+                        <strong class="text-dark">{{ visit.doctor_name }}</strong>
+                        <span class="text-muted d-block small">{{ visit.department }}</span>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Chief Complaint:</th>
+                    <td>{{ visit.symptoms or 'General Consultation' }}</td>
+                </tr>
+                <tr>
+                    <th>Consultation Fee:</th>
+                    <td>
+                        <strong class="text-success">Rs. {{ "%.2f"|format(visit.fee) }}</strong> 
+                        <span class="badge bg-success-subtle text-success small ms-2">PAID</span>
+                    </td>
+                </tr>
+                {% if patient.address %}
+                <tr>
+                    <th>Area / City:</th>
+                    <td class="text-muted small">{{ patient.address }}</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+
+        <!-- Barcode / Instructions Area -->
+        <div class="slip-barcode-area">
+            <div class="barcode-simulated mb-1">
+                |||| | ||||| || ||||
+            </div>
+            <div class="font-monospace small text-muted mb-2">{{ patient.mr_number }}</div>
+            <div class="small text-muted fst-italic">
+                Please take a seat in the waiting area. Your token number will be called shortly.<br>
+                Please preserve your MR Number for future visits and follow-ups.
+            </div>
+        </div>
+    </div>
+
+    <!-- Auto Print Script -->
+    <script>
+        {% if auto_print %}
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                window.print();
+            }, 600);
+        });
+        {% endif %}
+
+        function toggleSlipFormat(format) {
+            if (format === 'thermal') {
+                document.body.classList.add('thermal-mode');
+                document.getElementById('btnThermal')?.classList.add('active', 'btn-primary');
+                document.getElementById('btnThermal')?.classList.remove('btn-outline-primary');
+                document.getElementById('btnA5')?.classList.remove('active', 'btn-primary');
+                document.getElementById('btnA5')?.classList.add('btn-outline-primary');
+            } else {
+                document.body.classList.remove('thermal-mode');
+                document.getElementById('btnA5')?.classList.add('active', 'btn-primary');
+                document.getElementById('btnA5')?.classList.remove('btn-outline-primary');
+                document.getElementById('btnThermal')?.classList.remove('active', 'btn-primary');
+                document.getElementById('btnThermal')?.classList.add('btn-outline-primary');
+            }
+        }
+    </script>
+</body>
+</html>

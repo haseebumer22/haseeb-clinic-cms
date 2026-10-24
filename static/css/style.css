@@ -1,0 +1,489 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+
+:root {
+  --primary-color: #0284c7;
+  --primary-hover: #0369a1;
+  --secondary-color: #0f172a;
+  --accent-teal: #0d9488;
+  --accent-emerald: #10b981;
+  --bg-main: #f8fafc;
+  --card-bg: #ffffff;
+  --border-color: #e2e8f0;
+  --text-main: #1e293b;
+  --text-muted: #64748b;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  --radius-lg: 16px;
+  --radius-md: 10px;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Navbar */
+.navbar-clinic {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-bottom: 2px solid #0284c7;
+  box-shadow: var(--shadow-md);
+  padding: 0.85rem 0;
+}
+
+.brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: #ffffff;
+}
+
+.brand-icon {
+  width: 42px;
+  height: 42px;
+  background: linear-gradient(135deg, #0284c7, #0d9488);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.4rem;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+}
+
+.brand-title {
+  font-weight: 800;
+  font-size: 1.25rem;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  color: #ffffff;
+}
+
+.brand-subtitle {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.nav-link-custom {
+  color: #cbd5e1 !important;
+  font-weight: 600;
+  font-size: 0.92rem;
+  padding: 0.5rem 1rem !important;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-link-custom:hover, .nav-link-custom.active {
+  color: #ffffff !important;
+  background-color: rgba(2, 132, 199, 0.25);
+}
+
+.live-clock-badge {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 30px;
+  padding: 6px 14px;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Stat Cards */
+.stat-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.stat-icon-wrapper {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.stat-icon-blue { background: #e0f2fe; color: #0284c7; }
+.stat-icon-teal { background: #ccfbf1; color: #0f766e; }
+.stat-icon-purple { background: #f3e8ff; color: #7e22ce; }
+.stat-icon-amber { background: #fef3c7; color: #b45309; }
+
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--text-main);
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+/* Glass & Content Cards */
+.clinic-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.clinic-card-header {
+  padding: 1rem 1.5rem;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.clinic-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--secondary-color);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clinic-card-body {
+  padding: 1.5rem;
+}
+
+/* Form Controls */
+.form-label {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: #334155;
+  margin-bottom: 0.35rem;
+}
+
+.form-control, .form-select {
+  border-radius: var(--radius-md);
+  border: 1.5px solid #cbd5e1;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+.form-control:focus, .form-select:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.15);
+}
+
+.form-control-readonly {
+  background-color: #f1f5f9;
+  font-weight: 600;
+  color: #475569;
+}
+
+.btn-primary-clinic {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  border: none;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1.5rem;
+  box-shadow: 0 4px 10px rgba(2, 132, 199, 0.3);
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-primary-clinic:hover {
+  background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(2, 132, 199, 0.4);
+}
+
+.btn-secondary-clinic {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1.25rem;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary-clinic:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+/* Badges */
+.badge-mr {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.88rem;
+  font-weight: 700;
+  background: #e0f2fe;
+  color: #0369a1;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #bae6fd;
+}
+
+.badge-token {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1rem;
+  font-weight: 800;
+  background: #fef3c7;
+  color: #b45309;
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid #fde68a;
+}
+
+.badge-status-waiting {
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+}
+
+.badge-status-completed {
+  background: #dcfce7;
+  color: #166534;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+}
+
+.badge-status-consultation {
+  background: #e0e7ff;
+  color: #3730a3;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+}
+
+/* Search Results Autocomplete Dropdown */
+.search-results-box {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: none;
+}
+
+.search-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.search-item:hover {
+  background: #f8fafc;
+}
+
+/* Printable Slip Styles */
+.slip-container {
+  max-width: 600px;
+  margin: 2rem auto;
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid #e2e8f0;
+  padding: 2.5rem;
+}
+
+.slip-header {
+  text-align: center;
+  border-bottom: 2px dashed #94a3b8;
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.slip-clinic-name {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+  margin-bottom: 2px;
+}
+
+.slip-clinic-sub {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.slip-title-pill {
+  display: inline-block;
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 3px 16px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.slip-token-banner {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.token-big {
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: #0284c7;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1;
+}
+
+.slip-table th {
+  color: #64748b;
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 8px 10px;
+  border: none;
+  width: 32%;
+}
+
+.slip-table td {
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 8px 10px;
+  border: none;
+}
+
+.slip-barcode-area {
+  text-align: center;
+  border-top: 2px dashed #94a3b8;
+  padding-top: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.barcode-simulated {
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 3px;
+  font-size: 1.8rem;
+  color: #0f172a;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: repeating-linear-gradient(
+    90deg,
+    #0f172a,
+    #0f172a 2px,
+    transparent 2px,
+    transparent 5px,
+    #0f172a 5px,
+    #0f172a 8px,
+    transparent 8px,
+    transparent 10px
+  );
+  width: 220px;
+  margin: 0 auto;
+}
+
+/* PRINT MEDIA QUERIES (Professional Print Layout) */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .no-print, .navbar-clinic, footer, .btn-print-controls {
+    display: none !important;
+  }
+
+  .slip-container {
+    box-shadow: none !important;
+    border: 1px solid #000000 !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: 148mm !important; /* Standard A5 width */
+    padding: 15mm !important;
+    border-radius: 0 !important;
+    page-break-inside: avoid;
+  }
+
+  .slip-clinic-name {
+    color: #000000 !important;
+  }
+
+  .slip-title-pill {
+    background: #000000 !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .token-big {
+    color: #000000 !important;
+  }
+
+  .slip-token-banner {
+    border: 1px solid #000000 !important;
+    background: #f5f5f5 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Thermal Receipt Mode if toggled */
+  body.thermal-mode .slip-container {
+    max-width: 78mm !important; /* 80mm roll */
+    padding: 5mm !important;
+    font-size: 12px !important;
+  }
+}

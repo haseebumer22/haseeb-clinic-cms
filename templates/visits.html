@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Daily Queue & Appointments — Clinic Management System{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold mb-1 text-dark">
+            <i class="bi bi-card-checklist text-primary me-2"></i> Daily Queue & OPD Visits
+        </h3>
+        <p class="text-muted small mb-0">Track patient consultation queue, update patient statuses, and reprint appointment slips.</p>
+    </div>
+    <a href="{{ url_for('index') }}" class="btn btn-primary-clinic">
+        <i class="bi bi-person-plus-fill me-1"></i> Register Walk-in Patient
+    </a>
+</div>
+
+<!-- Filter Bar -->
+<div class="clinic-card mb-4">
+    <div class="clinic-card-body p-3">
+        <form action="{{ url_for('visits') }}" method="GET" class="row g-2 align-items-center">
+            <div class="col-md-4">
+                <label class="form-label small mb-1">Select Date</label>
+                <input type="date" name="date" class="form-control" value="{{ selected_date }}">
+            </div>
+            <div class="col-md-5">
+                <label class="form-label small mb-1">Filter by Doctor</label>
+                <select name="doctor" class="form-select">
+                    <option value="">All Doctors (Clinic Wide)</option>
+                    {% for doc in doctors %}
+                        <option value="{{ doc.name }}" {% if selected_doctor == doc.name %}selected{% endif %}>{{ doc.name }} ({{ doc.specialty }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end gap-2 pt-md-4">
+                <button type="submit" class="btn btn-primary-clinic flex-grow-1">
+                    <i class="bi bi-funnel"></i> Apply Filter
+                </button>
+                <a href="{{ url_for('visits') }}" class="btn btn-outline-secondary">
+                    Reset
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Queue Table -->
+<div class="clinic-card">
+    <div class="clinic-card-header">
+        <div class="d-flex align-items-center gap-2">
+            <h5 class="clinic-card-title">Appointments for {{ selected_date }}</h5>
+            <span class="badge bg-primary-subtle text-primary">{{ visits|length }} in Queue</span>
+        </div>
+    </div>
+    <div class="clinic-card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">Token</th>
+                        <th>MR Number</th>
+                        <th>Patient Details</th>
+                        <th>Doctor</th>
+                        <th>Complaint / Note</th>
+                        <th>Time</th>
+                        <th>Status</th>
+                        <th class="text-end pe-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if visits %}
+                        {% for v in visits %}
+                            <tr>
+                                <td class="ps-3">
+                                    <span class="badge-token">#{{ "%02d"|format(v.token_number) }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge-mr">{{ v.patient.mr_number }}</span>
+                                </td>
+                                <td>
+                                    <strong class="text-dark">{{ v.patient.patient_name }}</strong>
+                                    <div class="text-muted small">{{ v.patient.age }}y, {{ v.patient.gender }} &bull; {{ v.patient.phone_number }}</div>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold">{{ v.doctor_name }}</div>
+                                    <div class="text-muted small">{{ v.department }}</div>
+                                </td>
+                                <td class="small">{{ v.symptoms or 'General Checkup' }}</td>
+                                <td class="text-muted small">{{ v.visit_datetime.strftime("%I:%M %p") }}</td>
+                                <td>
+                                    <!-- Status dropdown / form -->
+                                    <form action="{{ url_for('update_visit_status', visit_id=v.id) }}" method="POST" class="d-inline">
+                                        <select name="status" class="form-select form-select-sm fw-semibold" onchange="this.form.submit()" style="width: 145px; cursor: pointer;">
+                                            <option value="Waiting" {% if v.status == 'Waiting' %}selected{% endif %}>⏳ Waiting</option>
+                                            <option value="In Consultation" {% if v.status == 'In Consultation' %}selected{% endif %}>🩺 In Doctor's Room</option>
+                                            <option value="Completed" {% if v.status == 'Completed' %}selected{% endif %}>✅ Completed</option>
+                                            <option value="Cancelled" {% if v.status == 'Cancelled' %}selected{% endif %}>❌ Cancelled</option>
+                                        </select>
+                                    </form>
+                                </td>
+                                <td class="text-end pe-3">
+                                    <a href="{{ url_for('print_slip', visit_id=v.id, auto=0) }}" class="btn btn-sm btn-outline-primary" target="_blank" title="Print Slip">
+                                        <i class="bi bi-printer"></i> Print Slip
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center py-5 text-muted">
+                                <i class="bi bi-calendar-x fs-1 d-block mb-2"></i>
+                                No appointments registered for the selected date or filter.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
