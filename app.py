@@ -3,13 +3,26 @@ from datetime import datetime, date
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort
 from models import db, Patient, Visit, Doctor
 
+from dotenv import load_dotenv
+
+# Load local environment variables from .env file
+load_dotenv()
+
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "haseeb-clinic-secret-key-2026-very-secure"
-if os.environ.get("VERCEL"):
-    db_path = "/tmp/clinic.db"
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", f"sqlite:///{db_path}")
+
+# Database Configuration (Supabase PostgreSQL or fallback SQLite)
+database_url = os.environ.get("DATABASE_URL")
+if database_url:
+    # Supabase / cloud providers often use 'postgres://' which SQLAlchemy requires as 'postgresql://'
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+elif os.environ.get("VERCEL"):
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:////tmp/clinic.db"
 else:
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", "sqlite:///clinic.db")
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///clinic.db"
+
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
