@@ -107,7 +107,10 @@
                                 <span class="input-group-text bg-light text-muted"><i
                                         class="bi bi-telephone"></i></span>
                                 <input type="tel" class="form-control" id="phone_number" name="phone_number"
-                                    placeholder="0300-1234567" required>
+                                    placeholder="0300-1234567" required autocomplete="off">
+                                <span class="input-group-text bg-light text-muted d-none" id="phoneCheckSpinner">
+                                    <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                                </span>
                             </div>
                         </div>
 
@@ -125,6 +128,79 @@
                                 <option value="AB+">AB+</option>
                                 <option value="AB-">AB-</option>
                             </select>
+                        </div>
+
+                        <!-- Dynamic Phone Validation & Family Member Linking Banner -->
+                        <div class="col-12" id="phoneLookupContainer" style="display: none;">
+                            <div class="p-3 rounded-3 border bg-warning-subtle border-warning-subtle shadow-sm" id="phoneDuplicateAlert">
+                                <div class="d-flex align-items-start gap-2">
+                                    <i class="bi bi-exclamation-triangle-fill text-warning fs-4 mt-1"></i>
+                                    <div class="w-100">
+                                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                            <div>
+                                                <strong class="text-dark">Registered Phone Number Detected!</strong>
+                                                <div class="small text-muted">A registered phone number cannot be used twice for an unrelated person.</div>
+                                            </div>
+                                            <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" id="btnBookReturningFromPhone">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Same Patient? Book Returning Visit
+                                            </button>
+                                        </div>
+
+                                        <!-- Fetched Primary Patient Details Card -->
+                                        <div class="mt-2 p-2 bg-white rounded border small">
+                                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+                                                <div>
+                                                    <span class="fw-bold text-primary" id="fetchedPrimaryName">Primary Patient</span>
+                                                    <span class="badge-mr ms-2" id="fetchedPrimaryMR">MR-XXXXXX</span>
+                                                </div>
+                                                <span class="text-muted" id="fetchedPrimaryVisits">0 visits</span>
+                                            </div>
+                                            <div class="text-muted mt-1" id="fetchedPrimaryMeta">Age: 0 | Gender: Male | Address: ...</div>
+                                            <div id="fetchedFamilyMembersList" class="mt-2 pt-2 border-top d-none">
+                                                <span class="fw-semibold text-secondary small d-block mb-1">Other Linked Family Members:</span>
+                                                <div id="fetchedFamilyBadges" class="d-flex flex-wrap gap-1"></div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Family Member Option Checkbox -->
+                                        <div class="mt-3 pt-2 border-top">
+                                            <div class="form-check form-switch mb-2">
+                                                <input class="form-check-input" type="checkbox" role="switch" id="is_family_member" name="is_family_member" value="1">
+                                                <label class="form-check-label fw-bold text-dark" for="is_family_member">
+                                                    Registering a Family Member of <span id="labelPrimaryNameBold" class="text-primary">this patient</span>?
+                                                </label>
+                                            </div>
+
+                                            <!-- Family Relation Fields (Revealed when switch is checked) -->
+                                            <div id="familyRelationFields" class="row g-2 align-items-center" style="display: none;">
+                                                <div class="col-md-7">
+                                                    <label class="form-label small fw-semibold mb-1" for="relation_to_primary">
+                                                        Relationship to Primary Patient <span class="text-danger">*</span>
+                                                    </label>
+                                                    <select class="form-select form-select-sm" id="relation_to_primary" name="relation_to_primary">
+                                                        <option value="" disabled selected>-- Select Relationship --</option>
+                                                        <option value="Son">Son</option>
+                                                        <option value="Daughter">Daughter</option>
+                                                        <option value="Spouse (Wife)">Spouse (Wife)</option>
+                                                        <option value="Spouse (Husband)">Spouse (Husband)</option>
+                                                        <option value="Father">Father</option>
+                                                        <option value="Mother">Mother</option>
+                                                        <option value="Brother">Brother</option>
+                                                        <option value="Sister">Sister</option>
+                                                        <option value="Child">Child</option>
+                                                        <option value="Other Relative">Other Relative</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-5 pt-md-3">
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="btnCopyAddress">
+                                                        <i class="bi bi-geo-alt me-1"></i> Copy Family Address
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Address -->

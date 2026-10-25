@@ -1,5 +1,6 @@
 import os
 import io
+import re
 from datetime import datetime, date
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort, send_file
 import openpyxl
@@ -7,6 +8,46 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from models import db, Patient, Visit, Doctor
 from dotenv import load_dotenv
+
+def normalize_phone(phone_str):
+    """Clean phone number by removing spaces, dashes, dots, and standardizing Pakistan mobile format."""
+    if not phone_str:
+        return ""
+    cleaned = re.sub(r"[^\d+]", "", str(phone_str).strip())
+    if cleaned.startswith("+92"):
+        cleaned = "0" + cleaned[3:]
+    elif cleaned.startswith("92") and len(cleaned) == 12:
+        cleaned = "0" + cleaned[2:]
+    return cleaned
+
+def validate_patient_info(name, age_str, phone_str, gender):
+    """
+    Validate all patient registration inputs.
+    Returns (is_valid: bool, error_message: str or None, cleaned_dict: dict or None)
+    """
+    name = (name or "").strip()
+    if not name or len(name) < 2:
+        return False, "Patient full name must be at least 2 characters.", None
+    if not re.search(r"[a-zA-Z\u0600-\u06FF]", name):
+        return False, "Patient name must contain alphabetic characters.", None
+
+    try:
+        age = int(age_str)
+        if not (1 <= age <= 125):
+            return False, "Patient age must be between 1 and 125 years.", None
+    except (ValueError, TypeError):
+        return False, "Invalid age entered. Please enter a valid whole number.", None
+
+    phone = normalize_phone(phone_str)
+    digits_only = re.sub(r"\D", "", phone)
+    if len(digits_only) < 10 or len(digits_only) > 15:
+        return False, "Please enter a valid phone number (10 to 15 digits, e.g. 03001234567).", None
+
+    valid_genders = ["Male", "Female", "Child", "Other"]
+    if gender not in valid_genders:
+        gender = "Male"
+
+    return True, None, {"name": name, "age": age, "phone": phone, "gender": gender}
 
 # Load local environment variables from .env file
 load_dotenv()
@@ -42,6 +83,21 @@ def init_database():
     """Create database tables and insert initial default doctors if empty."""
     with app.app_context():
         db.create_all()
+        # Safe column addition for existing databases
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(db.text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS primary_patient_id INTEGER;"))
+                conn.execute(db.text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS relation_to_primary VARCHAR(100) DEFAULT '';"))
+                conn.commit()
+        except Exception:
+            try:
+                with db.engine.connect() as conn:
+                    conn.execute(db.text("ALTER TABLE patients ADD COLUMN primary_patient_id INTEGER;"))
+                    conn.execute(db.text("ALTER TABLE patients ADD COLUMN relation_to_primary VARCHAR(100) DEFAULT '';"))
+                    conn.commit()
+            except Exception:
+                pass
+
         if Doctor.query.count() == 0:
             for doc in DEFAULT_DOCTORS:
                 db.session.add(Doctor(
@@ -89,33 +145,61 @@ def index():
 
 @app.route("/register", methods=["POST"])
 def register():
-    """Register a new patient and create their first visit record."""
-    name = request.form.get("patient_name", "").strip()
-    phone = request.form.get("phone_number", "").strip()
-    gender = request.form.get("gender", "Male").strip()
+    """Register a new patient with validation, phone duplicate checking, and family relation linking."""
+    name_raw = request.form.get("patient_name", "").strip()
+    phone_raw = request.form.get("phone_number", "").strip()
+    age_raw = request.form.get("age", "").strip()
+    gender_raw = request.form.get("gender", "Male").strip()
     blood_group = request.form.get("blood_group", "N/A").strip()
     address = request.form.get("address", "").strip()
     doctor_name = request.form.get("doctor", "").strip()
     symptoms = request.form.get("symptoms", "General Consultation").strip()
-    
-    age_text = request.form.get("age", "").strip()
-    try:
-        age = int(age_text)
-    except ValueError:
-        flash("Invalid age entered. Please enter a valid number.", "danger")
+
+    is_family = request.form.get("is_family_member") == "1"
+    relation = request.form.get("relation_to_primary", "").strip()
+
+    # Step 1: Input Validation
+    is_valid, err_msg, cleaned_data = validate_patient_info(name_raw, age_raw, phone_raw, gender_raw)
+    if not is_valid:
+        flash(err_msg, "danger")
         return redirect(url_for("index"))
 
-    if not name or not phone or not (1 <= age <= 125):
-        flash("Please provide a valid patient name, contact number, and age.", "danger")
-        return redirect(url_for("index"))
+    name = cleaned_data["name"]
+    age = cleaned_data["age"]
+    phone = cleaned_data["phone"]
+    gender = cleaned_data["gender"]
 
     doctor = Doctor.query.filter_by(name=doctor_name, is_active=True).first()
     if not doctor:
         flash("Selected doctor is not recognized or is inactive.", "danger")
         return redirect(url_for("index"))
 
+    # Step 2: Registered Phone Number Validation & Family Check
+    # Look for any existing patients already registered with this exact or normalized phone number
+    existing_patients = Patient.query.filter(
+        (Patient.phone_number == phone) |
+        (Patient.phone_number == phone_raw)
+    ).order_by(Patient.id.asc()).all()
+
+    primary_patient_id = None
+    relation_to_primary = ""
+
+    if existing_patients:
+        primary = existing_patients[0]
+        # Registered phone number cannot be used twice unless explicitly identified as a family member
+        if not is_family or not relation:
+            flash(
+                f"Phone number '{phone}' is already registered to {primary.patient_name} ({primary.mr_number}). "
+                f"Registered phone numbers cannot be used twice. If registering a family member, please check 'Register as Family Member' and select their relationship to {primary.patient_name}.",
+                "warning"
+            )
+            return redirect(url_for("index"))
+
+        primary_patient_id = primary.id
+        relation_to_primary = relation
+
     try:
-        # Step 1: Create Patient with placeholder MR number to obtain unique ID
+        # Step 3: Create Patient with placeholder MR number to obtain unique ID
         patient = Patient(
             mr_number="PENDING",
             patient_name=name,
@@ -124,15 +208,17 @@ def register():
             phone_number=phone,
             address=address,
             blood_group=blood_group,
+            primary_patient_id=primary_patient_id,
+            relation_to_primary=relation_to_primary,
             created_at=datetime.now()
         )
         db.session.add(patient)
         db.session.flush()
 
-        # Step 2: Set permanent unique formatted MR Number
+        # Step 4: Set permanent unique formatted MR Number
         patient.mr_number = f"MR-{patient.id:06d}"
 
-        # Step 3: Create initial visit with doctor-specific OPD number
+        # Step 5: Create initial visit with doctor-specific OPD number
         token_num = calculate_next_token(doctor.name)
         visit = Visit(
             patient_id=patient.id,
@@ -147,7 +233,16 @@ def register():
         db.session.add(visit)
         db.session.commit()
 
-        flash(f"Patient {patient.patient_name} registered successfully with MR: {patient.mr_number} (Dr. {doctor.name} OPD #{token_num})", "success")
+        if relation_to_primary and primary_patient_id:
+            flash(
+                f"Patient '{patient.patient_name}' registered as {relation_to_primary} of {existing_patients[0].patient_name} ({existing_patients[0].mr_number}) with MR: {patient.mr_number} (Dr. {doctor.name} OPD #{token_num})",
+                "success"
+            )
+        else:
+            flash(
+                f"Patient '{patient.patient_name}' registered successfully with MR: {patient.mr_number} (Dr. {doctor.name} OPD #{token_num})",
+                "success"
+            )
         return redirect(url_for("print_slip", visit_id=visit.id))
     except Exception as e:
         db.session.rollback()
@@ -245,6 +340,8 @@ def export_patients():
         "Gender",
         "Phone Number",
         "Blood Group",
+        "Family Relation",
+        "Primary Patient (Head)",
         "Address",
         "Registration Date",
         "Total Visits",
@@ -268,6 +365,9 @@ def export_patients():
         last_visit_date = p.visits[0].visit_datetime.strftime("%Y-%m-%d %I:%M %p") if p.visits else "None"
         reg_date = p.created_at.strftime("%Y-%m-%d %I:%M %p") if p.created_at else ""
 
+        relation = p.relation_to_primary or ("Primary (Family Head)" if p.family_members else "Individual")
+        primary_info = f"{p.primary_patient.patient_name} ({p.primary_patient.mr_number})" if p.primary_patient else ""
+
         row_data = [
             p.mr_number,
             p.patient_name,
@@ -275,6 +375,8 @@ def export_patients():
             p.gender,
             p.phone_number,
             p.blood_group or "N/A",
+            relation,
+            primary_info,
             p.address or "",
             reg_date,
             visits_count,
@@ -292,7 +394,7 @@ def export_patients():
             if is_even:
                 cell.fill = zebra_fill
 
-            if col_idx in [1, 3, 4, 5, 6, 8, 9, 11]:
+            if col_idx in [1, 3, 4, 5, 6, 7, 8, 10, 11, 13]:
                 cell.alignment = center_align
             else:
                 cell.alignment = left_align
@@ -425,6 +527,8 @@ def import_patients():
                     header_map["phone"] = col_idx
                 elif any(k in val for k in ["blood", "blood_group", "blood group"]):
                     header_map["blood_group"] = col_idx
+                elif any(k in val for k in ["relation", "relationship", "family"]):
+                    header_map["relation"] = col_idx
                 elif any(k in val for k in ["address", "city", "location"]):
                     header_map["address"] = col_idx
 
@@ -462,9 +566,10 @@ def import_patients():
                 skipped_count += 1
                 continue
 
-            phone = str(phone_val).strip()
-            if phone.endswith(".0"):
-                phone = phone[:-2]
+            phone_str = str(phone_val).strip()
+            if phone_str.endswith(".0"):
+                phone_str = phone_str[:-2]
+            phone = normalize_phone(phone_str)
 
             if not phone:
                 skipped_count += 1
@@ -496,11 +601,27 @@ def import_patients():
             addr_val = str(ws.cell(row=row_idx, column=addr_col).value or "").strip()
             address = addr_val if addr_val.lower() != "none" else ""
 
+            rel_col = header_map.get("relation")
+            rel_val = str(ws.cell(row=row_idx, column=rel_col).value or "").strip() if rel_col else ""
+
             # Check if patient already exists by phone number
-            existing = Patient.query.filter_by(phone_number=phone).first()
+            existing = Patient.query.filter(
+                (Patient.phone_number == phone) |
+                (Patient.phone_number == phone_str)
+            ).order_by(Patient.id.asc()).first()
+
+            primary_id = None
+            relation_to_set = ""
+
             if existing:
-                skipped_count += 1
-                continue
+                if rel_val:
+                    # Allow importing as family member of primary patient
+                    primary_id = existing.id
+                    relation_to_set = rel_val
+                else:
+                    # Duplicate phone without family relation cannot be used twice
+                    skipped_count += 1
+                    continue
 
             patient = Patient(
                 mr_number="PENDING",
@@ -510,6 +631,8 @@ def import_patients():
                 phone_number=phone,
                 address=address,
                 blood_group=blood_group,
+                primary_patient_id=primary_id,
+                relation_to_primary=relation_to_set,
                 created_at=datetime.now()
             )
             db.session.add(patient)
@@ -522,10 +645,10 @@ def import_patients():
         if imported_count > 0:
             msg = f"Successfully imported {imported_count} new patient(s)!"
             if skipped_count > 0:
-                msg += f" ({skipped_count} row(s) skipped due to duplicate phone or missing fields)."
+                msg += f" ({skipped_count} row(s) skipped: duplicate phone without family relation)."
             flash(msg, "success")
         elif skipped_count > 0:
-            flash(f"No new patients imported. {skipped_count} row(s) were skipped (already registered with same phone number).", "warning")
+            flash(f"No new patients imported. {skipped_count} row(s) were skipped (already registered with same phone number and no family relation specified).", "warning")
         else:
             flash("No valid patient records found in the uploaded Excel sheet.", "info")
 
@@ -637,22 +760,81 @@ def toggle_doctor(doctor_id):
         flash(f"{doc.name} {state}.", "info")
     return redirect(url_for("doctors"))
 
+@app.route("/api/check_phone")
+def check_phone_api():
+    """Look up registered patient data by phone number to prevent duplicates and enable family member linking."""
+    raw_phone = request.args.get("phone", "").strip()
+    if not raw_phone:
+        return jsonify({"found": False})
+
+    cleaned = normalize_phone(raw_phone)
+    # Search for matching patients by either raw or normalized format
+    patients = Patient.query.filter(
+        (Patient.phone_number == raw_phone) |
+        (Patient.phone_number == cleaned)
+    ).order_by(Patient.id.asc()).all()
+
+    if not patients:
+        return jsonify({"found": False})
+
+    # The first registered patient with this phone number is the Primary Patient
+    primary = patients[0]
+    family_members = []
+    for p in patients[1:]:
+        family_members.append({
+            "id": p.id,
+            "mr_number": p.mr_number,
+            "name": p.patient_name,
+            "age": p.age,
+            "gender": p.gender,
+            "relation": p.relation_to_primary or "Family Member",
+            "visits_count": len(p.visits)
+        })
+
+    return jsonify({
+        "found": True,
+        "total_linked": len(patients),
+        "primary_patient": {
+            "id": primary.id,
+            "mr_number": primary.mr_number,
+            "name": primary.patient_name,
+            "age": primary.age,
+            "gender": primary.gender,
+            "phone": primary.phone_number,
+            "blood_group": primary.blood_group,
+            "address": primary.address,
+            "visits_count": len(primary.visits),
+            "last_visit": primary.visits[0].visit_datetime.strftime("%d-%b-%Y %I:%M %p") if primary.visits else "None"
+        },
+        "family_members": family_members
+    })
+
 @app.route("/api/search_patient")
 def search_patient_api():
-    """Live search API for receptionist lookup by MR number, phone, or name."""
+    """Live search API for receptionist lookup by MR number, phone, or name, including family relationship info."""
     query = request.args.get("q", "").strip()
     if not query or len(query) < 2:
         return jsonify([])
 
     pattern = f"%{query}%"
+    cleaned_query = normalize_phone(query)
+    cleaned_pattern = f"%{cleaned_query}%" if cleaned_query else pattern
+
     patients = Patient.query.filter(
         (Patient.mr_number.ilike(pattern)) |
         (Patient.phone_number.ilike(pattern)) |
+        (Patient.phone_number.ilike(cleaned_pattern)) |
         (Patient.patient_name.ilike(pattern))
-    ).limit(8).all()
+    ).limit(10).all()
 
     results = []
     for p in patients:
+        rel_text = ""
+        if p.relation_to_primary and p.primary_patient:
+            rel_text = f"{p.relation_to_primary} of {p.primary_patient.patient_name} ({p.primary_patient.mr_number})"
+        elif p.family_members:
+            rel_text = f"Primary Account Holder ({len(p.family_members)} linked family member{'s' if len(p.family_members) > 1 else ''})"
+
         results.append({
             "id": p.id,
             "mr_number": p.mr_number,
@@ -661,6 +843,8 @@ def search_patient_api():
             "gender": p.gender,
             "phone": p.phone_number,
             "blood_group": p.blood_group,
+            "address": p.address,
+            "relation_info": rel_text,
             "visits_count": len(p.visits),
             "last_visit": p.visits[0].visit_datetime.strftime("%d-%b-%Y %I:%M %p") if p.visits else "None"
         })

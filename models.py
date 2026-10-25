@@ -16,7 +16,17 @@ class Patient(db.Model):
     blood_group = db.Column(db.String(10), default="N/A")
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
 
+    # Family member relation tracking for shared phone numbers
+    primary_patient_id = db.Column(db.Integer, db.ForeignKey("patients.id"), nullable=True)
+    relation_to_primary = db.Column(db.String(100), default="", nullable=True)
+
     visits = db.relationship("Visit", backref="patient", cascade="all, delete-orphan", lazy=True, order_by="desc(Visit.visit_datetime)")
+    family_members = db.relationship(
+        "Patient",
+        backref=db.backref("primary_patient", remote_side=[id]),
+        lazy=True,
+        foreign_keys=[primary_patient_id]
+    )
 
     def __repr__(self):
         return f"<Patient {self.mr_number} - {self.patient_name}>"

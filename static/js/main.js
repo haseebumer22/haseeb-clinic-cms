@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
     initLiveClock();
     initPatientSearch();
     initDoctorTokenTracker();
+    initPhoneValidationTracker();
 });
 
 // Dynamic Doctor OPD Token Tracker on Reception Desk
@@ -107,12 +108,16 @@ function renderSearchResults(patients, container) {
 
     let html = "";
     patients.forEach(p => {
+        const relationBadge = p.relation_info 
+            ? `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1 small py-0"><i class="bi bi-people-fill me-1"></i>${p.relation_info}</span>`
+            : '';
         html += `
             <div class="search-item d-flex justify-content-between align-items-center" onclick="selectReturningPatient(${JSON.stringify(p).replace(/"/g, '&quot;')})">
                 <div>
                     <div class="fw-bold text-dark">
                         ${p.name} 
                         <span class="badge-mr ms-2">${p.mr_number}</span>
+                        ${relationBadge}
                     </div>
                     <small class="text-muted">
                         <i class="bi bi-person"></i> ${p.age} yrs (${p.gender}) | 
@@ -182,5 +187,185 @@ function toggleSlipFormat(format) {
         document.getElementById('btnA5')?.classList.remove('btn-outline-primary');
         document.getElementById('btnThermal')?.classList.remove('active', 'btn-primary');
         document.getElementById('btnThermal')?.classList.add('btn-outline-primary');
+    }
+}
+
+// Live Phone Duplicate Detection & Family Relation Linking
+function initPhoneValidationTracker() {
+    const phoneInput = document.getElementById("phone_number");
+    const spinner = document.getElementById("phoneCheckSpinner");
+    const container = document.getElementById("phoneLookupContainer");
+    const primaryName = document.getElementById("fetchedPrimaryName");
+    const primaryMR = document.getElementById("fetchedPrimaryMR");
+    const primaryMeta = document.getElementById("fetchedPrimaryMeta");
+    const primaryVisits = document.getElementById("fetchedPrimaryVisits");
+    const labelPrimaryBold = document.getElementById("labelPrimaryNameBold");
+    const familyBadges = document.getElementById("fetchedFamilyBadges");
+    const familyList = document.getElementById("fetchedFamilyMembersList");
+    const isFamilySwitch = document.getElementById("is_family_member");
+    const familyRelationFields = document.getElementById("familyRelationFields");
+    const relationSelect = document.getElementById("relation_to_primary");
+    const btnBookReturning = document.getElementById("btnBookReturningFromPhone");
+    const btnCopyAddress = document.getElementById("btnCopyAddress");
+    const addressInput = document.getElementById("address");
+    const newPatientForm = document.getElementById("newPatientForm");
+
+    if (!phoneInput || !container) return;
+
+    let debounceTimer;
+    let currentPrimaryPatient = null;
+    let isDuplicatePhone = false;
+
+    // Toggle Family switch
+    if (isFamilySwitch && familyRelationFields) {
+        isFamilySwitch.addEventListener("change", () => {
+            if (isFamilySwitch.checked) {
+                familyRelationFields.style.display = "flex";
+                if (relationSelect) relationSelect.required = true;
+            } else {
+                familyRelationFields.style.display = "none";
+                if (relationSelect) {
+                    relationSelect.required = false;
+                    relationSelect.value = "";
+                }
+            }
+        });
+    }
+
+    // Copy Address Button
+    if (btnCopyAddress) {
+        btnCopyAddress.addEventListener("click", () => {
+            if (currentPrimaryPatient && currentPrimaryPatient.address && addressInput) {
+                addressInput.value = currentPrimaryPatient.address;
+                btnCopyAddress.innerHTML = `<i class="bi bi-check2 text-success me-1"></i> Address Copied!`;
+                setTimeout(() => {
+                    btnCopyAddress.innerHTML = `<i class="bi bi-geo-alt me-1"></i> Copy Family Address`;
+                }, 2000);
+            }
+        });
+    }
+
+    // Phone input typing tracker
+    phoneInput.addEventListener("input", (e) => {
+        clearTimeout(debounceTimer);
+        const rawVal = e.target.value.trim();
+        const digits = rawVal.replace(/\D/g, "");
+
+        if (digits.length < 10) {
+            container.style.display = "none";
+            isDuplicatePhone = false;
+            currentPrimaryPatient = null;
+            if (isFamilySwitch) isFamilySwitch.checked = false;
+            if (familyRelationFields) familyRelationFields.style.display = "none";
+            if (relationSelect) {
+                relationSelect.required = false;
+                relationSelect.value = "";
+            }
+            return;
+        }
+
+        if (spinner) spinner.classList.remove("d-none");
+
+        debounceTimer = setTimeout(() => {
+            fetch(`/api/check_phone?phone=${encodeURIComponent(rawVal)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (spinner) spinner.classList.add("d-none");
+                    if (data.found && data.primary_patient) {
+                        isDuplicatePhone = true;
+                        currentPrimaryPatient = data.primary_patient;
+                        container.style.display = "block";
+
+                        if (primaryName) primaryName.textContent = data.primary_patient.name;
+                        if (primaryMR) primaryMR.textContent = data.primary_patient.mr_number;
+                        if (primaryMeta) {
+                            primaryMeta.textContent = `Age: ${data.primary_patient.age} yrs | Gender: ${data.primary_patient.gender} | Blood: ${data.primary_patient.blood_group || 'N/A'} | Area: ${data.primary_patient.address || 'N/A'}`;
+                        }
+                        if (primaryVisits) primaryVisits.textContent = `${data.primary_patient.visits_count} past visits`;
+                        if (labelPrimaryBold) labelPrimaryBold.textContent = data.primary_patient.name;
+
+                        // List family members if any exist
+                        if (familyList && familyBadges) {
+                            if (data.family_members && data.family_members.length > 0) {
+                                familyList.classList.remove("d-none");
+                                familyBadges.innerHTML = data.family_members.map(fm => `
+                                    <span class="badge bg-secondary-subtle text-secondary border">
+                                        ${fm.name} (${fm.relation} - ${fm.mr_number})
+                                    </span>
+                                `).join("");
+                            } else {
+                                familyList.classList.add("d-none");
+                                familyBadges.innerHTML = "";
+                            }
+                        }
+
+                        // Attach Quick Returning Visit handler
+                        if (btnBookReturning) {
+                            btnBookReturning.onclick = () => {
+                                selectReturningPatient(data.primary_patient);
+                                const card = document.getElementById("selectedPatientCard");
+                                if (card) card.scrollIntoView({ behavior: 'smooth' });
+                            };
+                        }
+                    } else {
+                        isDuplicatePhone = false;
+                        currentPrimaryPatient = null;
+                        container.style.display = "none";
+                        if (isFamilySwitch) isFamilySwitch.checked = false;
+                        if (familyRelationFields) familyRelationFields.style.display = "none";
+                        if (relationSelect) {
+                            relationSelect.required = false;
+                            relationSelect.value = "";
+                        }
+                    }
+                })
+                .catch(err => {
+                    if (spinner) spinner.classList.add("d-none");
+                    console.error("Phone check error:", err);
+                });
+        }, 300);
+    });
+
+    // Form submission validation
+    if (newPatientForm) {
+        newPatientForm.addEventListener("submit", (e) => {
+            const nameInput = document.getElementById("patient_name");
+            const ageInput = document.getElementById("age");
+
+            // Client-side validation checks
+            if (nameInput && nameInput.value.trim().length < 2) {
+                e.preventDefault();
+                alert("Please enter a valid patient full name (at least 2 characters).");
+                nameInput.focus();
+                return;
+            }
+
+            if (ageInput) {
+                const ageVal = parseInt(ageInput.value, 10);
+                if (isNaN(ageVal) || ageVal < 1 || ageVal > 125) {
+                    e.preventDefault();
+                    alert("Please enter a valid patient age between 1 and 125 years.");
+                    ageInput.focus();
+                    return;
+                }
+            }
+
+            // Duplicate phone enforcement: Cannot register with duplicate phone unless marked as family member
+            if (isDuplicatePhone && isFamilySwitch && !isFamilySwitch.checked) {
+                e.preventDefault();
+                alert(`Phone number is already registered to ${currentPrimaryPatient?.name || 'an existing patient'}. Registered phone numbers cannot be used twice unless you check 'Register as Family Member' and select their relation.`);
+                container.scrollIntoView({ behavior: 'smooth' });
+                return;
+            }
+
+            if (isDuplicatePhone && isFamilySwitch && isFamilySwitch.checked) {
+                if (!relationSelect || !relationSelect.value) {
+                    e.preventDefault();
+                    alert(`Please select the family relationship to ${currentPrimaryPatient?.name || 'the primary patient'}.`);
+                    if (relationSelect) relationSelect.focus();
+                    return;
+                }
+            }
+        });
     }
 }

@@ -85,6 +85,16 @@
                     <th>Contact Phone:</th>
                     <td>{{ patient.phone_number }}</td>
                 </tr>
+                {% if patient.relation_to_primary and patient.primary_patient %}
+                <tr>
+                    <th>Family Relation:</th>
+                    <td>
+                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle">
+                            <i class="bi bi-people-fill me-1"></i> {{ patient.relation_to_primary }} of {{ patient.primary_patient.patient_name }} ({{ patient.primary_patient.mr_number }})
+                        </span>
+                    </td>
+                </tr>
+                {% endif %}
                 {% if patient.blood_group and patient.blood_group != 'N/A' %}
                 <tr>
                     <th>Blood Group:</th>
