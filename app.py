@@ -52,11 +52,13 @@ def init_database():
 
 init_database()
 
-def calculate_next_token():
-    """Calculate the sequential token number for today's visits."""
+def calculate_next_token(doctor_name=None):
+    """Calculate the sequential OPD token number for a specific doctor today."""
     today_start = datetime.combine(date.today(), datetime.min.time())
-    today_count = Visit.query.filter(Visit.visit_datetime >= today_start).count()
-    return today_count + 1
+    query = Visit.query.filter(Visit.visit_datetime >= today_start)
+    if doctor_name:
+        query = query.filter(Visit.doctor_name == doctor_name)
+    return query.count() + 1
 
 @app.route("/")
 def index():
@@ -68,7 +70,8 @@ def index():
     active_doctors = len(doctors)
     
     recent_visits = Visit.query.order_by(Visit.id.desc()).limit(6).all()
-    next_token = calculate_next_token()
+    doctor_tokens = {doc.name: calculate_next_token(doc.name) for doc in doctors}
+    default_next_token = doctor_tokens[doctors[0].name] if doctors else 1
 
     return render_template(
         "index.html",
@@ -77,7 +80,8 @@ def index():
         today_visits=today_visits,
         active_doctors=active_doctors,
         recent_visits=recent_visits,
-        next_token=next_token
+        doctor_tokens=doctor_tokens,
+        next_token=default_next_token
     )
 
 @app.route("/register", methods=["POST"])
@@ -125,8 +129,8 @@ def register():
         # Step 2: Set permanent unique formatted MR Number
         patient.mr_number = f"MR-{patient.id:06d}"
 
-        # Step 3: Create initial visit
-        token_num = calculate_next_token()
+        # Step 3: Create initial visit with doctor-specific OPD number
+        token_num = calculate_next_token(doctor.name)
         visit = Visit(
             patient_id=patient.id,
             token_number=token_num,
@@ -140,7 +144,7 @@ def register():
         db.session.add(visit)
         db.session.commit()
 
-        flash(f"Patient {patient.patient_name} registered successfully with MR: {patient.mr_number}", "success")
+        flash(f"Patient {patient.patient_name} registered successfully with MR: {patient.mr_number} (Dr. {doctor.name} OPD #{token_num})", "success")
         return redirect(url_for("print_slip", visit_id=visit.id))
     except Exception as e:
         db.session.rollback()
@@ -165,7 +169,8 @@ def new_visit():
         return redirect(url_for("index"))
 
     try:
-        token_num = calculate_next_token()
+        # Create visit with doctor-specific OPD number
+        token_num = calculate_next_token(doctor.name)
         visit = Visit(
             patient_id=patient.id,
             token_number=token_num,
@@ -179,7 +184,7 @@ def new_visit():
         db.session.add(visit)
         db.session.commit()
 
-        flash(f"New visit booked for {patient.patient_name} (MR: {patient.mr_number})!", "success")
+        flash(f"New visit booked for {patient.patient_name} (MR: {patient.mr_number}) — {doctor.name} OPD #{token_num}!", "success")
         return redirect(url_for("print_slip", visit_id=visit.id))
     except Exception as e:
         db.session.rollback()
@@ -201,7 +206,17 @@ def patients():
         patient_list = Patient.query.order_by(Patient.id.desc()).all()
 
     doctors = Doctor.query.filter_by(is_active=True).all()
-    return render_template("patients.html", patients=patient_list, query=query, doctors=doctors)
+    doctor_tokens = {doc.name: calculate_next_token(doc.name) for doc in doctors}
+    return render_template("patients.html", patients=patient_list, query=query, doctors=doctors, doctor_tokens=doctor_tokens)
+
+@app.route("/api/doctor_token")
+def doctor_token_api():
+    """API endpoint to get real-time next OPD number for any doctor."""
+    doc_name = request.args.get("doctor", "").strip()
+    return jsonify({
+        "doctor": doc_name,
+        "next_token": calculate_next_token(doc_name if doc_name else None)
+    })
 
 @app.route("/visits")
 def visits():

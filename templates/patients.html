@@ -126,7 +126,7 @@
                                                             <thead class="table-light">
                                                                 <tr>
                                                                     <th class="ps-3">Date & Time</th>
-                                                                    <th>Token</th>
+                                                                    <th>Doctor OPD #</th>
                                                                     <th>Doctor</th>
                                                                     <th>Department</th>
                                                                     <th>Reason / Complaint</th>
@@ -203,7 +203,7 @@
                         <label class="form-label" for="modal_doctor">Assign Consulting Doctor <span class="text-danger">*</span></label>
                         <select class="form-select" id="modal_doctor" name="doctor" required>
                             {% for doc in doctors %}
-                                <option value="{{ doc.name }}">{{ doc.name }} ({{ doc.specialty }}) — Rs. {{ "%.0f"|format(doc.fee) }}</option>
+                                <option value="{{ doc.name }}">{{ doc.name }} ({{ doc.specialty }}) — Rs. {{ "%.0f"|format(doc.fee) }} [Next OPD #{{ doctor_tokens.get(doc.name, 1) }}]</option>
                             {% endfor %}
                         </select>
                     </div>

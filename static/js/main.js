@@ -3,7 +3,34 @@
 document.addEventListener("DOMContentLoaded", () => {
     initLiveClock();
     initPatientSearch();
+    initDoctorTokenTracker();
 });
+
+// Dynamic Doctor OPD Token Tracker on Reception Desk
+function initDoctorTokenTracker() {
+    const docSelect = document.getElementById("doctor");
+    const tokenBadge = document.getElementById("selectedDoctorTokenBadge");
+    const statToken = document.getElementById("statDoctorToken");
+
+    function updateToken() {
+        if (!docSelect) return;
+        const selectedOption = docSelect.options[docSelect.selectedIndex];
+        if (!selectedOption) return;
+        const token = selectedOption.getAttribute("data-token") || "1";
+        const docName = selectedOption.value;
+        if (tokenBadge) {
+            tokenBadge.textContent = `Next OPD for ${docName}: #${token}`;
+        }
+        if (statToken) {
+            statToken.textContent = `#${token}`;
+        }
+    }
+
+    if (docSelect) {
+        docSelect.addEventListener("change", updateToken);
+        updateToken();
+    }
+}
 
 // Update Digital Clock at Reception Header
 function initLiveClock() {

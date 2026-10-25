@@ -59,7 +59,7 @@
         <!-- Token Banner -->
         <div class="slip-token-banner">
             <div>
-                <span class="text-muted small text-uppercase fw-bold d-block">Queue Token</span>
+                <span class="text-muted small text-uppercase fw-bold d-block">{{ visit.doctor_name }} — OPD Token</span>
                 <span class="token-big">#{{ "%02d"|format(visit.token_number) }}</span>
             </div>
             <div class="text-end">
@@ -95,6 +95,7 @@
                     <th>Consulting Doctor:</th>
                     <td>
                         <strong class="text-dark">{{ visit.doctor_name }}</strong>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-2">OPD Token #{{ "%02d"|format(visit.token_number) }}</span>
                         <span class="text-muted d-block small">{{ visit.department }}</span>
                     </td>
                 </tr>

@@ -30,8 +30,8 @@
     <div class="col-6 col-lg-3">
         <div class="stat-card">
             <div>
-                <div class="stat-value text-warning">{{ next_token }}</div>
-                <div class="stat-label">Next Token #</div>
+                <div class="stat-value text-warning" id="statDoctorToken">#{{ next_token }}</div>
+                <div class="stat-label">Next Doctor OPD</div>
             </div>
             <div class="stat-icon-wrapper stat-icon-amber">
                 <i class="bi bi-ticket-perforated-fill"></i>
@@ -143,9 +143,8 @@
                                     class="text-danger">*</span></label>
                             <select class="form-select" id="doctor" name="doctor" required>
                                 {% for doc in doctors %}
-                                <option value="{{ doc.name }}" data-fee="{{ doc.fee }}" {% if loop.first %}selected{%
-                                    endif %}>
-                                    {{ doc.name }} ({{ doc.specialty }}) — Rs. {{ "%.0f"|format(doc.fee) }}
+                                <option value="{{ doc.name }}" data-fee="{{ doc.fee }}" data-token="{{ doctor_tokens.get(doc.name, 1) }}" {% if loop.first %}selected{% endif %}>
+                                    {{ doc.name }} ({{ doc.specialty }}) — Rs. {{ "%.0f"|format(doc.fee) }} [Next OPD #{{ doctor_tokens.get(doc.name, 1) }}]
                                 </option>
                                 {% endfor %}
                             </select>
@@ -171,9 +170,9 @@
                                     </div>
                                 </div>
                                 <div class="text-end">
-                                    <span
+                                    <span id="selectedDoctorTokenBadge"
                                         class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 font-monospace">
-                                        Next Queue Token: #{{ next_token }}
+                                        Next OPD Token: #{{ next_token }}
                                     </span>
                                 </div>
                             </div>
@@ -236,8 +235,9 @@
                                     class="text-danger">*</span></label>
                             <select class="form-select form-select-sm" id="return_doctor" name="doctor" required>
                                 {% for doc in doctors %}
-                                <option value="{{ doc.name }}">{{ doc.name }} ({{ doc.specialty }}) — Rs. {{
-                                    "%.0f"|format(doc.fee) }}</option>
+                                <option value="{{ doc.name }}" data-token="{{ doctor_tokens.get(doc.name, 1) }}">
+                                    {{ doc.name }} ({{ doc.specialty }}) — Rs. {{ "%.0f"|format(doc.fee) }} [Next OPD #{{ doctor_tokens.get(doc.name, 1) }}]
+                                </option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -296,7 +296,7 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-3">Token</th>
+                        <th class="ps-3">Doctor OPD #</th>
                         <th>MR Number</th>
                         <th>Patient Name</th>
                         <th>Doctor</th>
