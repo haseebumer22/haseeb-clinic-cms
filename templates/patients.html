@@ -10,9 +10,17 @@
         </h3>
         <p class="text-muted small mb-0">Browse all registered clinic patients, check medical visit histories, and create returning visits.</p>
     </div>
-    <a href="{{ url_for('index') }}" class="btn btn-primary-clinic">
-        <i class="bi bi-person-plus-fill me-1"></i> Register New Patient
-    </a>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ url_for('export_patients') }}" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
+        </a>
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#importExcelModal">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i> Import Excel
+        </button>
+        <a href="{{ url_for('index') }}" class="btn btn-primary-clinic">
+            <i class="bi bi-person-plus-fill me-1"></i> Register New Patient
+        </a>
+    </div>
 </div>
 
 <!-- Search & Filter Card -->
@@ -219,6 +227,60 @@
                     <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary-clinic btn-sm">
                         <i class="bi bi-printer-fill me-1"></i> Issue Token & Print Slip
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Import Patients Excel Modal -->
+<div class="modal fade" id="importExcelModal" tabindex="-1" aria-labelledby="importExcelModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light border-bottom">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="bg-primary-subtle text-primary p-2 rounded-circle">
+                        <i class="bi bi-file-earmark-excel-fill fs-5"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold text-dark mb-0" id="importExcelModalLabel">Import Patients from Excel</h5>
+                        <small class="text-muted">Upload an .xlsx file to bulk import patient records</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('import_patients') }}" method="POST" enctype="multipart/form-data">
+                <div class="modal-body p-4">
+                    <div class="p-3 mb-3 bg-light rounded-3 border">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-semibold small text-dark"><i class="bi bi-info-circle text-primary me-1"></i> Excel Column Guidelines</span>
+                            <a href="{{ url_for('download_patient_template') }}" class="btn btn-sm btn-outline-success py-1 px-2">
+                                <i class="bi bi-download me-1"></i> Download Template (.xlsx)
+                            </a>
+                        </div>
+                        <p class="small text-muted mb-2">Your Excel sheet should contain the following column headers:</p>
+                        <div class="d-flex flex-wrap gap-1">
+                            <span class="badge bg-primary">Patient Name *</span>
+                            <span class="badge bg-secondary">Age</span>
+                            <span class="badge bg-secondary">Gender</span>
+                            <span class="badge bg-primary">Phone Number *</span>
+                            <span class="badge bg-secondary">Blood Group</span>
+                            <span class="badge bg-secondary">Address</span>
+                        </div>
+                        <small class="text-muted d-block mt-2 fst-italic">* Permanent MR numbers (e.g. MR-000001) will be automatically generated upon import.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="excelFile" class="form-label fw-semibold">Select Excel (.xlsx) File <span class="text-danger">*</span></label>
+                        <input class="form-control" type="file" id="excelFile" name="file" accept=".xlsx, .xls" required>
+                        <div class="form-text small">Accepted file types: <code>.xlsx</code>, <code>.xls</code> (Max recommended: 5,000 rows)</div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-top">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary-clinic btn-sm">
+                        <i class="bi bi-cloud-arrow-up-fill me-1"></i> Upload & Import
                     </button>
                 </div>
             </form>

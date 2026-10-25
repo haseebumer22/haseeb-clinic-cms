@@ -1,8 +1,11 @@
 import os
+import io
 from datetime import datetime, date
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort, send_file
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 from models import db, Patient, Visit, Doctor
-
 from dotenv import load_dotenv
 
 # Load local environment variables from .env file
@@ -208,6 +211,329 @@ def patients():
     doctors = Doctor.query.filter_by(is_active=True).all()
     doctor_tokens = {doc.name: calculate_next_token(doc.name) for doc in doctors}
     return render_template("patients.html", patients=patient_list, query=query, doctors=doctors, doctor_tokens=doctor_tokens)
+
+@app.route("/patients/export")
+def export_patients():
+    """Export all registered patients to an Excel (.xlsx) file with professional formatting."""
+    patients = Patient.query.order_by(Patient.id.asc()).all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Patients Directory"
+    ws.views.sheetView[0].showGridLines = True
+
+    # Header styling (professional medical blue)
+    header_fill = PatternFill(start_color="0284C7", end_color="0284C7", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    data_font = Font(name="Calibri", size=10)
+    center_align = Alignment(horizontal="center", vertical="center")
+    left_align = Alignment(horizontal="left", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin", color="E2E8F0"),
+        right=Side(style="thin", color="E2E8F0"),
+        top=Side(style="thin", color="E2E8F0"),
+        bottom=Side(style="thin", color="E2E8F0")
+    )
+    zebra_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+
+    headers = [
+        "MR Number",
+        "Patient Name",
+        "Age",
+        "Gender",
+        "Phone Number",
+        "Blood Group",
+        "Address",
+        "Registration Date",
+        "Total Visits",
+        "Last Doctor Visited",
+        "Last Visit Date"
+    ]
+
+    ws.append(headers)
+    ws.row_dimensions[1].height = 28
+
+    for col_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    for row_idx, p in enumerate(patients, start=2):
+        visits_count = len(p.visits)
+        last_doc = p.visits[0].doctor_name if p.visits else "None"
+        last_visit_date = p.visits[0].visit_datetime.strftime("%Y-%m-%d %I:%M %p") if p.visits else "None"
+        reg_date = p.created_at.strftime("%Y-%m-%d %I:%M %p") if p.created_at else ""
+
+        row_data = [
+            p.mr_number,
+            p.patient_name,
+            p.age,
+            p.gender,
+            p.phone_number,
+            p.blood_group or "N/A",
+            p.address or "",
+            reg_date,
+            visits_count,
+            last_doc,
+            last_visit_date
+        ]
+        ws.append(row_data)
+        ws.row_dimensions[row_idx].height = 20
+
+        is_even = (row_idx % 2 == 0)
+        for col_idx in range(1, len(headers) + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.font = data_font
+            cell.border = thin_border
+            if is_even:
+                cell.fill = zebra_fill
+
+            if col_idx in [1, 3, 4, 5, 6, 8, 9, 11]:
+                cell.alignment = center_align
+            else:
+                cell.alignment = left_align
+
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            val_str = str(cell.value or "")
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"patients_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return send_file(
+        output,
+        download_name=filename,
+        as_attachment=True,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+@app.route("/patients/template")
+def download_patient_template():
+    """Download a formatted sample Excel (.xlsx) template for bulk patient imports."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Patient Import Template"
+    ws.views.sheetView[0].showGridLines = True
+
+    header_fill = PatternFill(start_color="0D9488", end_color="0D9488", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    data_font = Font(name="Calibri", size=10)
+    thin_border = Border(
+        left=Side(style="thin", color="CBD5E1"),
+        right=Side(style="thin", color="CBD5E1"),
+        top=Side(style="thin", color="CBD5E1"),
+        bottom=Side(style="thin", color="CBD5E1")
+    )
+
+    headers = ["Patient Name", "Age", "Gender", "Phone Number", "Blood Group", "Address"]
+    ws.append(headers)
+    ws.row_dimensions[1].height = 26
+
+    for col_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    sample_data = [
+        ["Muhammad Usman", 34, "Male", "03001234567", "B+", "House 12, Street 4, Lahore"],
+        ["Ayesha Bibi", 28, "Female", "03219876543", "O+", "Gulberg III, Lahore"],
+        ["Tariq Mehmood", 45, "Male", "03335557788", "A+", "DHA Phase 5, Lahore"]
+    ]
+
+    for row_idx, row_values in enumerate(sample_data, start=2):
+        ws.append(row_values)
+        ws.row_dimensions[row_idx].height = 20
+        for col_idx in range(1, len(headers) + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.font = data_font
+            cell.border = thin_border
+            if col_idx in [2, 3, 4, 5]:
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            else:
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            val_str = str(cell.value or "")
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 15)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return send_file(
+        output,
+        download_name="patient_import_template.xlsx",
+        as_attachment=True,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+@app.route("/patients/import", methods=["POST"])
+def import_patients():
+    """Import patients from an uploaded Excel (.xlsx/.xls) file."""
+    if "file" not in request.files:
+        flash("No file was selected for upload.", "danger")
+        return redirect(url_for("patients"))
+
+    file = request.files["file"]
+    if not file or file.filename == "":
+        flash("Please select an Excel file (.xlsx) to import.", "danger")
+        return redirect(url_for("patients"))
+
+    if not (file.filename.lower().endswith(".xlsx") or file.filename.lower().endswith(".xls")):
+        flash("Invalid file format. Please upload an Excel (.xlsx or .xls) file.", "danger")
+        return redirect(url_for("patients"))
+
+    try:
+        wb = openpyxl.load_workbook(file, data_only=True)
+        ws = wb.active
+
+        # Identify header row and map columns
+        header_map = {}
+        header_row_idx = None
+
+        for r in range(1, min(10, ws.max_row + 1)):
+            row_vals = [str(ws.cell(row=r, column=c).value or "").strip().lower() for c in range(1, ws.max_column + 1)]
+            for col_idx, val in enumerate(row_vals, start=1):
+                if any(k in val for k in ["patient name", "patient_name", "full name", "name"]):
+                    if "name" not in header_map:
+                        header_map["name"] = col_idx
+                elif "age" in val:
+                    header_map["age"] = col_idx
+                elif any(k in val for k in ["gender", "sex"]):
+                    header_map["gender"] = col_idx
+                elif any(k in val for k in ["phone", "mobile", "contact", "cell"]):
+                    header_map["phone"] = col_idx
+                elif any(k in val for k in ["blood", "blood_group", "blood group"]):
+                    header_map["blood_group"] = col_idx
+                elif any(k in val for k in ["address", "city", "location"]):
+                    header_map["address"] = col_idx
+
+            if "name" in header_map and "phone" in header_map:
+                header_row_idx = r
+                break
+
+        if not header_row_idx:
+            # Fallback to standard columns: 1: Name, 2: Age, 3: Gender, 4: Phone, 5: Blood, 6: Address
+            header_row_idx = 1
+            header_map = {
+                "name": 1,
+                "age": 2,
+                "gender": 3,
+                "phone": 4,
+                "blood_group": 5,
+                "address": 6
+            }
+
+        imported_count = 0
+        skipped_count = 0
+
+        for row_idx in range(header_row_idx + 1, ws.max_row + 1):
+            name_val = ws.cell(row=row_idx, column=header_map.get("name", 1)).value
+            if not name_val:
+                continue
+
+            name = str(name_val).strip()
+            if not name:
+                continue
+
+            phone_col = header_map.get("phone", 4)
+            phone_val = ws.cell(row=row_idx, column=phone_col).value
+            if phone_val is None:
+                skipped_count += 1
+                continue
+
+            phone = str(phone_val).strip()
+            if phone.endswith(".0"):
+                phone = phone[:-2]
+
+            if not phone:
+                skipped_count += 1
+                continue
+
+            age_col = header_map.get("age", 2)
+            age_val = ws.cell(row=row_idx, column=age_col).value
+            try:
+                age = int(float(age_val)) if age_val is not None else 30
+                if age < 1 or age > 125:
+                    age = 30
+            except (ValueError, TypeError):
+                age = 30
+
+            gender_col = header_map.get("gender", 3)
+            gender_val = str(ws.cell(row=row_idx, column=gender_col).value or "Male").strip()
+            if gender_val.lower().startswith("f"):
+                gender = "Female"
+            elif gender_val.lower().startswith("o"):
+                gender = "Other"
+            else:
+                gender = "Male"
+
+            bg_col = header_map.get("blood_group", 5)
+            blood_val = str(ws.cell(row=row_idx, column=bg_col).value or "N/A").strip()
+            blood_group = blood_val if blood_val and blood_val.lower() != "none" else "N/A"
+
+            addr_col = header_map.get("address", 6)
+            addr_val = str(ws.cell(row=row_idx, column=addr_col).value or "").strip()
+            address = addr_val if addr_val.lower() != "none" else ""
+
+            # Check if patient already exists by phone number
+            existing = Patient.query.filter_by(phone_number=phone).first()
+            if existing:
+                skipped_count += 1
+                continue
+
+            patient = Patient(
+                mr_number="PENDING",
+                patient_name=name,
+                age=age,
+                gender=gender,
+                phone_number=phone,
+                address=address,
+                blood_group=blood_group,
+                created_at=datetime.now()
+            )
+            db.session.add(patient)
+            db.session.flush()
+            patient.mr_number = f"MR-{patient.id:06d}"
+            imported_count += 1
+
+        db.session.commit()
+
+        if imported_count > 0:
+            msg = f"Successfully imported {imported_count} new patient(s)!"
+            if skipped_count > 0:
+                msg += f" ({skipped_count} row(s) skipped due to duplicate phone or missing fields)."
+            flash(msg, "success")
+        elif skipped_count > 0:
+            flash(f"No new patients imported. {skipped_count} row(s) were skipped (already registered with same phone number).", "warning")
+        else:
+            flash("No valid patient records found in the uploaded Excel sheet.", "info")
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error importing Excel file: {str(e)}", "danger")
+
+    return redirect(url_for("patients"))
 
 @app.route("/api/doctor_token")
 def doctor_token_api():
