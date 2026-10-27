@@ -1,0 +1,388 @@
+{% extends "base.html" %}
+
+{% block title %}Home Dashboard — {{ clinic.clinic_name if clinic else 'Clinic Management System' }}{% endblock %}
+
+{% block content %}
+<!-- Dashboard Welcome & Header -->
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="badge bg-primary text-white fw-bold px-2.5 py-1">
+                <i class="bi bi-speedometer2 me-1"></i> EXECUTIVE DASHBOARD
+            </span>
+            <span class="badge bg-light text-dark border">
+                <i class="bi bi-calendar3 me-1"></i> {{ today_date }}
+            </span>
+        </div>
+        <h3 class="fw-bold mb-1 text-dark">
+            <i class="bi bi-bar-chart-fill text-primary me-2"></i> Clinic Analytics & Operations Overview
+        </h3>
+        <p class="text-muted small mb-0">
+            Real-time monitoring of patient intake, queue flow, consultation revenue, and consulting doctor capacity.
+        </p>
+    </div>
+
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a href="{{ url_for('reception') }}" class="btn btn-primary-clinic shadow-sm">
+            <i class="bi bi-person-plus-fill me-1"></i> Open Reception Desk
+        </a>
+        <a href="{{ url_for('visits') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-card-checklist me-1"></i> Today's Queue
+        </a>
+        <a href="{{ url_for('patients') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-people-fill me-1"></i> Patient Directory
+        </a>
+    </div>
+</div>
+
+<!-- Primary KPI Cards Row -->
+<div class="row g-3 mb-4">
+    <!-- Today's Visits KPI -->
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="stat-card h-100 border-start border-4 border-primary">
+            <div>
+                <div class="stat-value text-primary">{{ today_visits }}</div>
+                <div class="stat-label">Today's Total Visits</div>
+                <div class="text-muted small mt-1">
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-1.5 py-0.5">
+                        {{ waiting_count + in_consultation_count }} in clinic
+                    </span>
+                    <span class="ms-1">queue active</span>
+                </div>
+            </div>
+            <div class="stat-icon-wrapper stat-icon-blue">
+                <i class="bi bi-calendar2-check-fill"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Today's Estimated Revenue KPI -->
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="stat-card h-100 border-start border-4 border-success">
+            <div>
+                <div class="stat-value text-success">Rs. {{ "%.0f"|format(today_revenue) }}</div>
+                <div class="stat-label">Today's Revenue</div>
+                <div class="text-muted small mt-1">
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-1.5 py-0.5">
+                        {{ completed_count }} completed
+                    </span>
+                    <span class="ms-1">paid consultations</span>
+                </div>
+            </div>
+            <div class="stat-icon-wrapper" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">
+                <i class="bi bi-cash-stack"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Total Registered Patients KPI -->
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="stat-card h-100 border-start border-4 border-info">
+            <div>
+                <div class="stat-value text-info" style="color: #0284c7 !important;">{{ total_patients }}</div>
+                <div class="stat-label">Total Patients in Registry</div>
+                <div class="text-muted small mt-1">
+                    <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-1.5 py-0.5">
+                        {{ linked_family_count }} linked
+                    </span>
+                    <span class="ms-1">family accounts</span>
+                </div>
+            </div>
+            <div class="stat-icon-wrapper stat-icon-teal">
+                <i class="bi bi-people-fill"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Doctors on Duty KPI -->
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="stat-card h-100 border-start border-4 border-warning">
+            <div>
+                <div class="stat-value text-warning" style="color: #d97706 !important;">{{ active_doctors }}</div>
+                <div class="stat-label">Doctors on Duty</div>
+                <div class="text-muted small mt-1">
+                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-1.5 py-0.5">
+                        100% available
+                    </span>
+                    <span class="ms-1">OPD consulting</span>
+                </div>
+            </div>
+            <div class="stat-icon-wrapper stat-icon-amber">
+                <i class="bi bi-heart-pulse-fill"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Queue Status Flow Ribbon -->
+<div class="clinic-card mb-4">
+    <div class="clinic-card-body p-3">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-2">
+            <div>
+                <strong class="text-dark d-block">Today's Patient Queue Distribution</strong>
+                <span class="text-muted small">Real-time status of patients currently registered for OPD consultations</span>
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2.5 py-1.5">
+                    <i class="bi bi-hourglass-split me-1"></i> Waiting: <strong>{{ waiting_count }}</strong>
+                </span>
+                <span class="badge bg-info-subtle text-info border border-info-subtle px-2.5 py-1.5">
+                    <i class="bi bi-stethoscope me-1"></i> In Consultation: <strong>{{ in_consultation_count }}</strong>
+                </span>
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1.5">
+                    <i class="bi bi-check-circle-fill me-1"></i> Completed: <strong>{{ completed_count }}</strong>
+                </span>
+                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2.5 py-1.5">
+                    <i class="bi bi-x-circle me-1"></i> Cancelled: <strong>{{ cancelled_count }}</strong>
+                </span>
+            </div>
+        </div>
+
+        {% set total_q = today_visits if today_visits > 0 else 1 %}
+        <div class="progress" style="height: 10px; border-radius: 6px;">
+            <div class="progress-bar bg-warning" role="progressbar" style="width: {{ (waiting_count / total_q) * 100 }}%" title="Waiting: {{ waiting_count }}"></div>
+            <div class="progress-bar bg-info" role="progressbar" style="width: {{ (in_consultation_count / total_q) * 100 }}%" title="In Consultation: {{ in_consultation_count }}"></div>
+            <div class="progress-bar bg-success" role="progressbar" style="width: {{ (completed_count / total_q) * 100 }}%" title="Completed: {{ completed_count }}"></div>
+            <div class="progress-bar bg-secondary" role="progressbar" style="width: {{ (cancelled_count / total_q) * 100 }}%" title="Cancelled: {{ cancelled_count }}"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Dashboard Layout -->
+<div class="row g-4">
+    <!-- LEFT COLUMN: Doctor Load & Live Visits Table -->
+    <div class="col-12 col-xl-8">
+        <!-- Active Doctors Load Roster -->
+        <div class="clinic-card mb-4">
+            <div class="clinic-card-header bg-light d-flex align-items-center justify-content-between">
+                <h5 class="clinic-card-title mb-0">
+                    <i class="bi bi-person-badge text-primary me-2"></i> Doctor Workload & Consultation Rooms
+                </h5>
+                <span class="badge bg-primary-subtle text-primary">{{ doctor_stats|length }} Doctors Active</span>
+            </div>
+            <div class="clinic-card-body p-3">
+                <div class="row g-3">
+                    {% for item in doctor_stats %}
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 rounded-3 border bg-light h-100 d-flex flex-column justify-content-between">
+                            <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+                                <div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="stat-icon-wrapper stat-icon-blue" style="width: 32px; height: 32px; font-size: 0.95rem;">
+                                            <i class="bi bi-person-heart"></i>
+                                        </div>
+                                        <strong class="text-dark">{{ item.doctor.name }}</strong>
+                                    </div>
+                                    <div class="text-muted small mt-1 ms-1">{{ item.doctor.specialty }}</div>
+                                </div>
+                                <span class="badge bg-white text-dark border">{{ item.doctor.room_number }}</span>
+                            </div>
+
+                            <div class="d-flex align-items-center justify-content-between pt-2 border-top small">
+                                <div>
+                                    <span class="text-muted">Fee:</span> 
+                                    <strong class="text-success">Rs. {{ "%.0f"|format(item.doctor.fee) }}</strong>
+                                </div>
+                                <div>
+                                    <span class="text-muted">Today:</span>
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                        {{ item.visits_today }} visits
+                                    </span>
+                                </div>
+                                <div>
+                                    <span class="text-muted">Next:</span>
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+                                        Token #{{ "%02d"|format(item.next_token) }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Today's Recent Queue Visits Table -->
+        <div class="clinic-card">
+            <div class="clinic-card-header bg-light d-flex align-items-center justify-content-between">
+                <h5 class="clinic-card-title mb-0">
+                    <i class="bi bi-card-checklist text-primary me-2"></i> Live Queue Activity & Registration Slips
+                </h5>
+                <a href="{{ url_for('visits') }}" class="btn btn-outline-primary btn-sm">
+                    View Full Queue <i class="bi bi-arrow-right ms-1"></i>
+                </a>
+            </div>
+            <div class="clinic-card-body p-0">
+                {% if recent_visits %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3">Token</th>
+                                <th>MR Number</th>
+                                <th>Patient Name</th>
+                                <th>Consulting Doctor</th>
+                                <th>Fee</th>
+                                <th>Status</th>
+                                <th class="text-end pe-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in recent_visits %}
+                            <tr>
+                                <td class="ps-3">
+                                    <span class="badge bg-primary text-white fw-bold fs-6">
+                                        #{{ "%02d"|format(v.token_number) }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge-mr">{{ v.patient.mr_number }}</span>
+                                </td>
+                                <td>
+                                    <strong class="text-dark d-block">{{ v.patient.patient_name }}</strong>
+                                    <span class="text-muted small">{{ v.patient.age }}y &bull; {{ v.patient.gender }}</span>
+                                </td>
+                                <td>
+                                    <span class="text-dark fw-semibold">{{ v.doctor_name }}</span>
+                                    <span class="text-muted d-block small">{{ v.department }}</span>
+                                </td>
+                                <td>
+                                    <strong class="text-success">Rs. {{ "%.0f"|format(v.fee) }}</strong>
+                                </td>
+                                <td>
+                                    {% if v.status == 'Waiting' %}
+                                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Waiting</span>
+                                    {% elif v.status == 'In Consultation' %}
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle">In Consultation</span>
+                                    {% elif v.status == 'Completed' %}
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle">Completed</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{{ v.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-3">
+                                    <a href="{{ url_for('print_slip', visit_id=v.id) }}" class="btn btn-sm btn-outline-secondary" title="Print OPD Slip">
+                                        <i class="bi bi-printer"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                    <p class="mb-2">No visits registered today yet.</p>
+                    <a href="{{ url_for('reception') }}" class="btn btn-primary-clinic btn-sm">
+                        <i class="bi bi-person-plus-fill me-1"></i> Register First Patient
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN: Quick Launchers & Recent Registrations -->
+    <div class="col-12 col-xl-4">
+        <!-- Quick Action Launcher Cards -->
+        <div class="clinic-card mb-4">
+            <div class="clinic-card-header bg-light">
+                <h5 class="clinic-card-title mb-0">
+                    <i class="bi bi-grid-fill text-primary me-2"></i> Operations Center
+                </h5>
+            </div>
+            <div class="clinic-card-body p-3">
+                <div class="d-flex flex-column gap-2">
+                    <a href="{{ url_for('reception') }}" class="p-3 rounded-3 border bg-primary text-white text-decoration-none shadow-sm d-flex align-items-center justify-content-between transition-hover">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="rounded-circle p-2 bg-white bg-opacity-25 fs-4">
+                                <i class="bi bi-person-plus-fill"></i>
+                            </div>
+                            <div>
+                                <strong class="d-block text-white">Reception Desk</strong>
+                                <span class="text-white-50 small">New patient entry & OPD token</span>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right text-white"></i>
+                    </a>
+
+                    <a href="{{ url_for('visits') }}" class="p-3 rounded-3 border bg-white text-dark text-decoration-none d-flex align-items-center justify-content-between transition-hover">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="rounded-circle p-2 bg-light text-primary fs-4">
+                                <i class="bi bi-card-checklist"></i>
+                            </div>
+                            <div>
+                                <strong class="d-block text-dark">Today's Queue</strong>
+                                <span class="text-muted small">Update consultation status</span>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right text-muted"></i>
+                    </a>
+
+                    <a href="{{ url_for('patients') }}" class="p-3 rounded-3 border bg-white text-dark text-decoration-none d-flex align-items-center justify-content-between transition-hover">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="rounded-circle p-2 bg-light text-success fs-4">
+                                <i class="bi bi-people-fill"></i>
+                            </div>
+                            <div>
+                                <strong class="d-block text-dark">Patient Directory</strong>
+                                <span class="text-muted small">Search MR & medical histories</span>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right text-muted"></i>
+                    </a>
+
+                    <a href="{{ url_for('master') }}" class="p-3 rounded-3 border bg-white text-dark text-decoration-none d-flex align-items-center justify-content-between transition-hover">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="rounded-circle p-2 bg-light text-warning fs-4">
+                                <i class="bi bi-shield-lock-fill"></i>
+                            </div>
+                            <div>
+                                <strong class="d-block text-dark">Master User Panel</strong>
+                                <span class="text-muted small">Clinic name, logo & security</span>
+                            </div>
+                        </div>
+                        <i class="bi bi-chevron-right text-muted"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recently Registered Patients -->
+        <div class="clinic-card">
+            <div class="clinic-card-header bg-light d-flex align-items-center justify-content-between">
+                <h5 class="clinic-card-title mb-0">
+                    <i class="bi bi-person-check text-primary me-2"></i> Recent Registrations
+                </h5>
+                <a href="{{ url_for('patients') }}" class="small text-decoration-none">All Patients</a>
+            </div>
+            <div class="clinic-card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for p in recent_patients %}
+                    <li class="list-group-item px-3 py-2.5 d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="d-flex align-items-center gap-2">
+                                <strong class="text-dark small">{{ p.patient_name }}</strong>
+                                <span class="badge-mr" style="font-size: 0.72rem;">{{ p.mr_number }}</span>
+                            </div>
+                            <span class="text-muted small d-block" style="font-size: 0.75rem;">
+                                {{ p.age }}y &bull; {{ p.gender }} &bull; Ph: {{ p.phone_number }}
+                            </span>
+                        </div>
+                        <span class="text-muted small" style="font-size: 0.72rem;">
+                            {{ p.created_at.strftime("%I:%M %p") if p.created_at else '' }}
+                        </span>
+                    </li>
+                    {% else %}
+                    <li class="list-group-item text-center py-4 text-muted small">
+                        No registered patients yet.
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

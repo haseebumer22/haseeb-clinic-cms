@@ -4,7 +4,7 @@ instance/
 __pycache__/
 *.pyc
 .env
-.vercel
+static/uploads/
 venv/
 .system_generated/
 

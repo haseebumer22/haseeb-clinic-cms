@@ -1,0 +1,511 @@
+{% extends "base.html" %}
+
+{% block title %}Master User & Clinic Profile — {{ clinic.clinic_name if clinic else 'Clinic Management System' }}{% endblock %}
+
+{% block content %}
+{% if auth_required %}
+<!-- Master User PIN Authentication Screen -->
+<div class="row justify-content-center py-5">
+    <div class="col-12 col-md-7 col-lg-5 col-xl-4">
+        <div class="clinic-card shadow-lg border-0">
+            <div class="clinic-card-body p-4 text-center">
+                <div class="stat-icon-wrapper mx-auto mb-3" style="width: 68px; height: 68px; font-size: 1.9rem; background: linear-gradient(135deg, #f59e0b, #d97706); color: white;">
+                    <i class="bi bi-shield-lock-fill"></i>
+                </div>
+                <h4 class="fw-bold text-dark mb-1">Master User Verification</h4>
+                <p class="text-muted small mb-4">
+                    Please enter the Master PIN to access clinic identity, branding logo, and system administration.
+                </p>
+
+                <form action="{{ url_for('master_auth') }}" method="POST">
+                    <div class="mb-3">
+                        <label for="pin" class="form-label small fw-bold text-muted text-uppercase">Enter Master PIN</label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text bg-light text-muted border-end-0">
+                                <i class="bi bi-key-fill"></i>
+                            </span>
+                            <input type="password" 
+                                   id="pin" 
+                                   name="pin" 
+                                   class="form-control text-center fs-4 font-monospace border-start-0" 
+                                   placeholder="••••" 
+                                   maxlength="8" 
+                                   autofocus 
+                                   required>
+                            <button class="btn btn-outline-secondary" type="button" id="togglePinBtn" onclick="togglePinVisibility()">
+                                <i class="bi bi-eye" id="togglePinIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 mb-3">
+                        <button type="submit" class="btn btn-primary-clinic btn-lg fw-semibold">
+                            <i class="bi bi-unlock-fill me-1"></i> Unlock Master Panel
+                        </button>
+                    </div>
+
+                    <div class="alert alert-warning-subtle border border-warning-subtle text-dark py-2 px-3 small rounded-3 mb-0 text-start">
+                        <i class="bi bi-info-circle text-warning-emphasis me-1"></i>
+                        <strong>Default PIN:</strong> <code>1234</code>. You can change or disable PIN protection inside the Master panel anytime.
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function togglePinVisibility() {
+    const pinInput = document.getElementById('pin');
+    const pinIcon = document.getElementById('togglePinIcon');
+    if (pinInput.type === 'password') {
+        pinInput.type = 'text';
+        pinIcon.classList.replace('bi-eye', 'bi-eye-slash');
+    } else {
+        pinInput.type = 'password';
+        pinIcon.classList.replace('bi-eye-slash', 'bi-eye');
+    }
+}
+</script>
+
+{% else %}
+<!-- Authenticated Master User Dashboard -->
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="badge bg-warning text-dark fw-bold px-2.5 py-1">
+                <i class="bi bi-shield-check me-1"></i> MASTER USER
+            </span>
+            <span class="badge bg-success-subtle text-success border border-success-subtle">
+                Session Active
+            </span>
+        </div>
+        <h3 class="fw-bold mb-1 text-dark">
+            <i class="bi bi-sliders2-vertical text-primary me-2"></i> Clinic Profile & Master Settings
+        </h3>
+        <p class="text-muted small mb-0">
+            Configure your clinic name, upload brand logo, manage official contacts, and customize patient registration slips.
+        </p>
+    </div>
+
+        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </a>
+        <a href="{{ url_for('reception') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-person-plus-fill"></i> Reception Desk
+        </a>
+        {% if clinic_settings.pin_required %}
+        <form action="{{ url_for('master_lock') }}" method="POST" class="d-inline">
+            <button type="submit" class="btn btn-outline-danger btn-sm" title="Lock Master session">
+                <i class="bi bi-lock-fill me-1"></i> Lock Session
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column: Settings Form -->
+    <div class="col-12 col-xl-7">
+        <form action="{{ url_for('update_master') }}" method="POST" enctype="multipart/form-data" id="masterSettingsForm">
+            <!-- Clinic Identity Card -->
+            <div class="clinic-card mb-4">
+                <div class="clinic-card-header bg-light d-flex align-items-center justify-content-between">
+                    <h5 class="clinic-card-title mb-0">
+                        <i class="bi bi-hospital text-primary me-2"></i> Clinic Identity & Header
+                    </h5>
+                    <span class="badge bg-primary-subtle text-primary">Public Branding</span>
+                </div>
+                <div class="clinic-card-body">
+                    <div class="mb-3">
+                        <label for="clinic_name" class="form-label fw-bold text-dark">
+                            Clinic Full Name <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-muted"><i class="bi bi-building"></i></span>
+                            <input type="text" 
+                                   class="form-control form-control-lg fw-bold" 
+                                   id="clinic_name" 
+                                   name="clinic_name" 
+                                   value="{{ clinic_settings.clinic_name }}" 
+                                   placeholder="e.g. HASEEB HEALTH CLINIC" 
+                                   required 
+                                   oninput="updateLivePreview()">
+                        </div>
+                        <div class="form-text">Displayed prominently in the top navigation header and registration slips.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="tagline" class="form-label fw-semibold text-dark">
+                            Clinic Subtitle / Tagline
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light text-muted"><i class="bi bi-tag"></i></span>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="tagline" 
+                                   name="tagline" 
+                                   value="{{ clinic_settings.tagline }}" 
+                                   placeholder="e.g. Reception Counter & Patient Registry" 
+                                   oninput="updateLivePreview()">
+                        </div>
+                        <div class="form-text">Appears below the clinic title on navigation bars.</div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label for="phone" class="form-label fw-semibold text-dark">
+                                Official Phone / Helpline
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-muted"><i class="bi bi-telephone"></i></span>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="phone" 
+                                       name="phone" 
+                                       value="{{ clinic_settings.phone }}" 
+                                       placeholder="e.g. (042) 3500-1122" 
+                                       oninput="updateLivePreview()">
+                            </div>
+                            <div class="form-text">Printed on OPD registration slips.</div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label for="address" class="form-label fw-semibold text-dark">
+                                Clinic Location / Address
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-muted"><i class="bi bi-geo-alt"></i></span>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="address" 
+                                       name="address" 
+                                       value="{{ clinic_settings.address }}" 
+                                       placeholder="e.g. Walk-In OPD • Reception Counter" 
+                                       oninput="updateLivePreview()">
+                            </div>
+                            <div class="form-text">Printed on the header of OPD slips.</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label for="slip_footer" class="form-label fw-semibold text-dark">
+                            OPD Registration Slip Instructions / Footer
+                        </label>
+                        <textarea class="form-control" 
+                                  id="slip_footer" 
+                                  name="slip_footer" 
+                                  rows="2" 
+                                  placeholder="e.g. Please take a seat in the waiting area. Your token number will be called shortly.">{{ clinic_settings.slip_footer }}</textarea>
+                        <div class="form-text">Note displayed at the bottom of printed patient slips.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Clinic Logo Management Card -->
+            <div class="clinic-card mb-4">
+                <div class="clinic-card-header bg-light d-flex align-items-center justify-content-between">
+                    <h5 class="clinic-card-title mb-0">
+                        <i class="bi bi-image text-primary me-2"></i> Clinic Logo Management
+                    </h5>
+                    <span class="badge bg-info-subtle text-info border border-info-subtle">Image Branding</span>
+                </div>
+                <div class="clinic-card-body">
+                    <!-- Current Logo Status -->
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 p-3 bg-light rounded-3 border mb-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="d-flex align-items-center justify-content-center" style="min-width: 60px; max-height: 60px;">
+                                {% if clinic_settings.logo_path %}
+                                    <img src="{{ clinic_settings.logo_path if (clinic_settings.logo_path.startswith('data:') or clinic_settings.logo_path.startswith('http')) else url_for('static', filename=clinic_settings.logo_path) }}" 
+                                         alt="Current Clinic Logo" 
+                                         class="img-fluid" 
+                                         style="max-height: 55px; max-width: 120px; object-fit: contain; border: none; background: transparent;">
+                                {% else %}
+                                    <div class="brand-icon" style="width: 38px; height: 38px; font-size: 1.1rem;">
+                                        <i class="bi bi-hospital"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <h6 class="fw-bold mb-0 text-dark">
+                                    {% if clinic_settings.logo_path %}
+                                        Custom Logo Active
+                                    {% else %}
+                                        Default Medical Hospital Symbol
+                                    {% endif %}
+                                </h6>
+                                <span class="text-muted small">
+                                    {% if clinic_settings.logo_path %}
+                                        File: <code>{{ clinic_settings.logo_path }}</code>
+                                    {% else %}
+                                        Using vector cross hospital icon
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+
+                        {% if clinic_settings.logo_path %}
+                        <div>
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmRemoveLogo()">
+                                <i class="bi bi-trash3 me-1"></i> Remove Logo
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Upload New Logo Control -->
+                    <div class="logo-preview-box mb-3">
+                        <i class="bi bi-cloud-arrow-up text-primary fs-1 d-block mb-2"></i>
+                        <h6 class="fw-bold text-dark mb-1">Choose or Replace Clinic Logo</h6>
+                        <p class="text-muted small mb-3">
+                            Upload a PNG (transparent recommended), SVG, WebP, or JPG image.<br>
+                            Max recommended dimensions: 400x150 px. Max size: 8 MB.
+                        </p>
+                        <div class="d-inline-block">
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="clinic_logo" 
+                                   name="clinic_logo" 
+                                   accept="image/png, image/jpeg, image/jpg, image/webp, image/svg+xml, image/gif"
+                                   onchange="handleLogoSelect(this)">
+                        </div>
+                    </div>
+
+                    <!-- Client-Side Instant Preview Banner (hidden until file chosen) -->
+                    <div id="newLogoPreviewContainer" class="p-3 bg-success-subtle border border-success-subtle rounded-3 mb-3 d-none">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="d-flex align-items-center justify-content-center" style="min-width: 60px; max-height: 60px;">
+                                <img id="newLogoPreviewImg" src="" alt="New Logo Preview" style="max-height: 55px; max-width: 120px; object-fit: contain; border: none; background: transparent;">
+                            </div>
+                            <div>
+                                <div class="badge bg-success mb-1">New Logo Selected (Ready to Save)</div>
+                                <div id="newLogoFileName" class="text-dark small fw-semibold"></div>
+                                <div class="text-muted small">Click "Save Clinic Details & Logo" below to apply.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Master Security & PIN Protection Card -->
+            <div class="clinic-card mb-4">
+                <div class="clinic-card-header bg-light d-flex align-items-center justify-content-between">
+                    <h5 class="clinic-card-title mb-0">
+                        <i class="bi bi-shield-lock text-primary me-2"></i> Master User Access Security
+                    </h5>
+                    <span class="badge bg-secondary-subtle text-secondary">Optional PIN</span>
+                </div>
+                <div class="clinic-card-body">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" 
+                               type="checkbox" 
+                               role="switch" 
+                               id="pin_required" 
+                               name="pin_required" 
+                               value="1" 
+                               {% if clinic_settings.pin_required %}checked{% endif %}
+                               onchange="togglePinFields(this.checked)">
+                        <label class="form-check-label fw-bold text-dark" for="pin_required">
+                            Require Master PIN to open this Master User Tab
+                        </label>
+                        <div class="form-text">
+                            When enabled, unauthorized counter staff cannot access or change clinic name, logo, or settings without entering the Master PIN.
+                        </div>
+                    </div>
+
+                    <div id="pinChangeFields" class="row g-3 {% if not clinic_settings.pin_required %}d-none{% endif %}">
+                        <div class="col-12 col-md-6">
+                            <label for="new_pin" class="form-label fw-semibold text-dark">
+                                Change Master PIN (Optional)
+                            </label>
+                            <input type="password" 
+                                   class="form-control font-monospace" 
+                                   id="new_pin" 
+                                   name="new_pin" 
+                                   placeholder="New 4-8 digit PIN" 
+                                   maxlength="8">
+                            <div class="form-text">Leave blank to keep current PIN (Current: <code>{{ clinic_settings.master_pin or '1234' }}</code>).</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Submit Button -->
+            <div class="d-flex align-items-center justify-content-between p-3 bg-white rounded-3 shadow-sm border mb-4">
+                <div>
+                    <strong class="text-dark d-block">Ready to update?</strong>
+                    <span class="text-muted small">All changes take effect immediately across all screens and print slips.</span>
+                </div>
+                <button type="submit" class="btn btn-primary-clinic btn-lg px-4 shadow">
+                    <i class="bi bi-check-circle-fill me-1"></i> Save Clinic Details & Logo
+                </button>
+            </div>
+        </form>
+
+        <!-- Hidden form for removing logo -->
+        <form id="removeLogoForm" action="{{ url_for('remove_clinic_logo') }}" method="POST" class="d-none"></form>
+    </div>
+
+    <!-- Right Column: Live Visual Previews -->
+    <div class="col-12 col-xl-5">
+        <div class="sticky-top" style="top: 20px; z-index: 10;">
+            <!-- Live Preview Card -->
+            <div class="clinic-card mb-4">
+                <div class="clinic-card-header bg-light">
+                    <h5 class="clinic-card-title mb-0">
+                        <i class="bi bi-eye-fill text-primary me-2"></i> Live Branding Preview
+                    </h5>
+                </div>
+                <div class="clinic-card-body">
+                    <p class="text-muted small mb-3">
+                        Here is an instant preview of how your brand name and logo will look across the system:
+                    </p>
+
+                    <!-- Navbar Preview -->
+                    <label class="form-label fw-bold small text-muted text-uppercase mb-2">
+                        <i class="bi bi-window-fullscreen me-1"></i> Top Navigation Bar Preview
+                    </label>
+                    <div class="preview-navbar-simulation mb-4">
+                        <div class="d-flex align-items-center gap-3">
+                            <div id="navPreviewLogoContainer">
+                                {% if clinic_settings.logo_path %}
+                                    <img id="navPreviewImg" 
+                                         src="{{ clinic_settings.logo_path if (clinic_settings.logo_path.startswith('data:') or clinic_settings.logo_path.startswith('http')) else url_for('static', filename=clinic_settings.logo_path) }}" 
+                                         alt="Navbar Logo" 
+                                         class="brand-logo-img">
+                                {% else %}
+                                    <div id="navPreviewDefaultIcon" class="brand-icon">
+                                        <i class="bi bi-hospital"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <div class="brand-title" id="navPreviewTitle">{{ clinic_settings.clinic_name }}</div>
+                                <div class="brand-subtitle" id="navPreviewTagline">{{ clinic_settings.tagline }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Slip Header Preview -->
+                    <label class="form-label fw-bold small text-muted text-uppercase mb-2">
+                        <i class="bi bi-receipt me-1"></i> OPD Registration Slip Header Preview
+                    </label>
+                    <div class="preview-slip-simulation mb-3 text-center">
+                        <div class="d-flex align-items-center justify-content-center gap-3 mb-2">
+                            <div id="slipPreviewLogoContainer">
+                                {% if clinic_settings.logo_path %}
+                                    <img id="slipPreviewImg" 
+                                         src="{{ clinic_settings.logo_path if (clinic_settings.logo_path.startswith('data:') or clinic_settings.logo_path.startswith('http')) else url_for('static', filename=clinic_settings.logo_path) }}" 
+                                         alt="Slip Logo" 
+                                         class="slip-logo-img">
+                                {% endif %}
+                            </div>
+                            <div class="text-start">
+                                <div class="slip-clinic-name fs-5 fw-bold text-dark" id="slipPreviewTitle">{{ clinic_settings.clinic_name }}</div>
+                                <div class="slip-clinic-sub text-muted small" id="slipPreviewSub">
+                                    {{ clinic_settings.address }} &bull; Ph: {{ clinic_settings.phone }}
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="slip-title-pill">OPD REGISTRATION SLIP</span>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info py-2 px-3 small border-0 d-flex align-items-center gap-2 mb-0">
+                        <i class="bi bi-lightning-charge-fill text-warning fs-5"></i>
+                        <div>
+                            Preview updates live as you type or pick a file. Click <strong>Save</strong> to make it permanent!
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Info Card -->
+            <div class="clinic-card">
+                <div class="clinic-card-header bg-light">
+                    <h5 class="clinic-card-title mb-0">
+                        <i class="bi bi-info-circle text-primary me-2"></i> Master User Information
+                    </h5>
+                </div>
+                <div class="clinic-card-body small text-muted">
+                    <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
+                        <li class="d-flex align-items-start gap-2">
+                            <i class="bi bi-check2-circle text-success fs-6 mt-0.5"></i>
+                            <div><strong>Logo Placement:</strong> Custom logo appears on the top navigation bar and OPD Registration slips.</div>
+                        </li>
+                        <li class="d-flex align-items-start gap-2">
+                            <i class="bi bi-check2-circle text-success fs-6 mt-0.5"></i>
+                            <div><strong>Print Slips:</strong> All patient slips automatically print the clinic name, address, and telephone configured here.</div>
+                        </li>
+                        <li class="d-flex align-items-start gap-2">
+                            <i class="bi bi-check2-circle text-success fs-6 mt-0.5"></i>
+                            <div><strong>Security:</strong> Enable PIN protection to prevent unauthorized counter staff from altering clinic branding.</div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateLivePreview() {
+    const nameVal = document.getElementById('clinic_name').value.trim() || 'CLINIC NAME';
+    const tagVal = document.getElementById('tagline').value.trim() || 'Reception Counter & Patient Registry';
+    const phoneVal = document.getElementById('phone').value.trim() || '(042) 3500-1122';
+    const addrVal = document.getElementById('address').value.trim() || 'Walk-In OPD • Reception Counter';
+
+    // Navbar preview
+    document.getElementById('navPreviewTitle').textContent = nameVal;
+    document.getElementById('navPreviewTagline').textContent = tagVal;
+
+    // Slip preview
+    document.getElementById('slipPreviewTitle').textContent = nameVal;
+    document.getElementById('slipPreviewSub').textContent = addrVal + ' • Ph: ' + phoneVal;
+}
+
+function handleLogoSelect(input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            const dataUrl = e.target.result;
+
+            // Show selected container
+            const container = document.getElementById('newLogoPreviewContainer');
+            container.classList.remove('d-none');
+            document.getElementById('newLogoPreviewImg').src = dataUrl;
+            document.getElementById('newLogoFileName').textContent = file.name + ' (' + Math.round(file.size / 1024) + ' KB)';
+
+            // Update Navbar simulation
+            const navContainer = document.getElementById('navPreviewLogoContainer');
+            navContainer.innerHTML = `<img src="${dataUrl}" alt="Preview" class="brand-logo-img">`;
+
+            // Update Slip simulation
+            const slipContainer = document.getElementById('slipPreviewLogoContainer');
+            slipContainer.innerHTML = `<img src="${dataUrl}" alt="Preview" class="slip-logo-img">`;
+        };
+
+        reader.readAsDataURL(file);
+    }
+}
+
+function togglePinFields(isChecked) {
+    const pinFields = document.getElementById('pinChangeFields');
+    if (isChecked) {
+        pinFields.classList.remove('d-none');
+    } else {
+        pinFields.classList.add('d-none');
+    }
+}
+
+function confirmRemoveLogo() {
+    if (confirm('Are you sure you want to remove the custom clinic logo and return to the default medical emblem?')) {
+        document.getElementById('removeLogoForm').submit();
+    }
+}
+</script>
+{% endif %}
+{% endblock %}
