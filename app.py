@@ -1,12 +1,14 @@
 import os
 import io
 import re
+import base64
 from datetime import datetime, date
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort, send_file, session
+from werkzeug.utils import secure_filename
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from models import db, Patient, Visit, Doctor
+from models import db, Patient, Visit, Doctor, ClinicSetting
 from dotenv import load_dotenv
 
 def normalize_phone(phone_str):
@@ -70,6 +72,16 @@ else:
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+# Upload Folder Configuration for Clinic Logo
+UPLOAD_FOLDER = os.path.join(app.root_path, "static", "uploads")
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "svg", "webp"}
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 8 MB max
+
+def allowed_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
 db.init_app(app)
 
 DEFAULT_DOCTORS = [
@@ -79,8 +91,46 @@ DEFAULT_DOCTORS = [
     {"name": "Dr. Fatima Noor", "specialty": "Gynecologist & Obstetrician", "fee": 1200.0, "room_number": "Room 104"}
 ]
 
+def get_clinic_settings():
+    """Fetch current clinic branding and settings, creating default record if missing."""
+    try:
+        setting = ClinicSetting.query.first()
+        if not setting:
+            setting = ClinicSetting(
+                clinic_name="HASEEB HEALTH CLINIC",
+                tagline="Reception Counter & Patient Registry",
+                phone="(042) 3500-1122",
+                address="Walk-In OPD • Reception Counter",
+                slip_footer="Please take a seat in the waiting area. Your token number will be called shortly.",
+                logo_path="",
+                master_pin="1234",
+                pin_required=False
+            )
+            db.session.add(setting)
+            db.session.commit()
+        return setting
+    except Exception:
+        class DummySetting:
+            clinic_name = "HASEEB HEALTH CLINIC"
+            tagline = "Reception Counter & Patient Registry"
+            phone = "(042) 3500-1122"
+            address = "Walk-In OPD • Reception Counter"
+            slip_footer = "Please take a seat in the waiting area. Your token number will be called shortly."
+            logo_path = ""
+            master_pin = "1234"
+            pin_required = False
+        return DummySetting()
+
+@app.context_processor
+def inject_global_context():
+    """Inject clinic settings and current year globally to all Jinja2 templates."""
+    return {
+        "clinic": get_clinic_settings(),
+        "current_year": datetime.now().year
+    }
+
 def init_database():
-    """Create database tables and insert initial default doctors if empty."""
+    """Create database tables and insert initial default doctors and clinic settings if empty."""
     with app.app_context():
         db.create_all()
         # Safe column addition for existing databases
@@ -108,6 +158,24 @@ def init_database():
                     is_active=True
                 ))
             db.session.commit()
+
+        # Ensure default ClinicSetting row exists
+        try:
+            if ClinicSetting.query.count() == 0:
+                default_setting = ClinicSetting(
+                    clinic_name="HASEEB HEALTH CLINIC",
+                    tagline="Reception Counter & Patient Registry",
+                    phone="(042) 3500-1122",
+                    address="Walk-In OPD • Reception Counter",
+                    slip_footer="Please take a seat in the waiting area. Your token number will be called shortly.",
+                    logo_path="",
+                    master_pin="1234",
+                    pin_required=False
+                )
+                db.session.add(default_setting)
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
 
 init_database()
 
@@ -850,6 +918,125 @@ def search_patient_api():
         })
     return jsonify(results)
 
+@app.route("/master")
+def master():
+    """Master User configuration panel for clinic name, logo, and administrative settings."""
+    settings = get_clinic_settings()
+    auth_required = bool(settings.pin_required and not session.get("master_authenticated"))
+    return render_template("master.html", clinic_settings=settings, auth_required=auth_required)
+
+@app.route("/master/auth", methods=["POST"])
+def master_auth():
+    """Authenticate Master User with PIN."""
+    settings = get_clinic_settings()
+    entered_pin = request.form.get("pin", "").strip()
+    if entered_pin == (settings.master_pin or "1234"):
+        session["master_authenticated"] = True
+        flash("Master User access verified successfully.", "success")
+    else:
+        flash("Invalid Master PIN. Please try again (Default: 1234).", "danger")
+    return redirect(url_for("master"))
+
+@app.route("/master/lock", methods=["POST"])
+def master_lock():
+    """Lock Master User session."""
+    session.pop("master_authenticated", None)
+    flash("Master User session has been locked.", "info")
+    return redirect(url_for("master"))
+
+@app.route("/master/update", methods=["POST"])
+def update_master():
+    """Update clinic name, logo, contact information, and master security settings."""
+    settings = get_clinic_settings()
+
+    if settings.pin_required and not session.get("master_authenticated"):
+        flash("Please authenticate with your Master PIN to save changes.", "danger")
+        return redirect(url_for("master"))
+
+    clinic_name = request.form.get("clinic_name", "").strip()
+    tagline = request.form.get("tagline", "").strip()
+    phone = request.form.get("phone", "").strip()
+    address = request.form.get("address", "").strip()
+    slip_footer = request.form.get("slip_footer", "").strip()
+    pin_required = request.form.get("pin_required") == "1"
+    new_pin = request.form.get("new_pin", "").strip()
+
+    if not clinic_name:
+        flash("Clinic Name cannot be empty.", "danger")
+        return redirect(url_for("master"))
+
+    settings.clinic_name = clinic_name
+    settings.tagline = tagline
+    settings.phone = phone
+    settings.address = address
+    settings.slip_footer = slip_footer
+    settings.pin_required = pin_required
+
+    if new_pin:
+        if len(new_pin) < 4:
+            flash("Master PIN must be at least 4 digits.", "warning")
+        else:
+            settings.master_pin = new_pin
+            flash("Master PIN has been updated.", "info")
+
+    # Handle Clinic Logo Upload
+    if "clinic_logo" in request.files:
+        file = request.files["clinic_logo"]
+        if file and file.filename:
+            if allowed_file(file.filename):
+                ext = file.filename.rsplit(".", 1)[1].lower()
+                file_bytes = file.read()
+                b64 = base64.b64encode(file_bytes).decode("utf-8")
+                mime = f"image/{ext}" if ext != "svg" else "image/svg+xml"
+                data_uri = f"data:{mime};base64,{b64}"
+                settings.logo_path = data_uri
+
+                # Also save to local upload folder when filesystem allows
+                try:
+                    filename = f"clinic_logo_{int(datetime.now().timestamp())}.{ext}"
+                    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+                    file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+                    with open(file_path, "wb") as f_out:
+                        f_out.write(file_bytes)
+                except Exception:
+                    pass
+
+                flash("Clinic logo updated successfully!", "success")
+            else:
+                flash("Invalid image file format. Supported formats: PNG, JPG, JPEG, WEBP, SVG, GIF.", "warning")
+
+    try:
+        db.session.commit()
+        if pin_required:
+            session["master_authenticated"] = True
+        flash("Clinic settings and branding saved successfully!", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error saving settings: {str(e)}", "danger")
+
+    return redirect(url_for("master"))
+
+@app.route("/master/remove-logo", methods=["POST"])
+def remove_clinic_logo():
+    """Remove the custom clinic logo and revert to default clinic branding icon."""
+    settings = get_clinic_settings()
+    if settings.pin_required and not session.get("master_authenticated"):
+        flash("Please authenticate with your Master PIN to make changes.", "danger")
+        return redirect(url_for("master"))
+
+    if settings.logo_path:
+        old_file = os.path.join(app.root_path, "static", settings.logo_path)
+        if os.path.exists(old_file):
+            try:
+                os.remove(old_file)
+            except Exception:
+                pass
+        settings.logo_path = ""
+        db.session.commit()
+        flash("Clinic logo removed. Reverted to default clinic symbol.", "info")
+    return redirect(url_for("master"))
+
 if __name__ == "__main__":
     init_database()
     app.run(debug=True, port=5000)
+

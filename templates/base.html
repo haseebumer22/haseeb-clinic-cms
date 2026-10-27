@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Reception Desk — Clinic Management System{% endblock %}</title>
+    <title>{% block title %}Reception Desk — {{ clinic.clinic_name if clinic else 'Clinic Management System' }}{% endblock %}</title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
@@ -17,12 +17,16 @@
     <nav class="navbar navbar-expand-lg navbar-clinic no-print">
         <div class="container-fluid px-lg-4">
             <a class="brand-logo" href="{{ url_for('index') }}">
-                <div class="brand-icon">
-                    <i class="bi bi-hospital"></i>
-                </div>
+                {% if clinic and clinic.logo_path %}
+                    <img src="{{ clinic.logo_path if (clinic.logo_path.startswith('data:') or clinic.logo_path.startswith('http')) else url_for('static', filename=clinic.logo_path) }}" alt="{{ clinic.clinic_name }} Logo" class="brand-logo-img">
+                {% else %}
+                    <div class="brand-icon">
+                        <i class="bi bi-hospital"></i>
+                    </div>
+                {% endif %}
                 <div>
-                    <div class="brand-title">HASEEB HEALTH CLINIC</div>
-                    <div class="brand-subtitle">Reception Counter & Patient Registry</div>
+                    <div class="brand-title">{{ clinic.clinic_name if clinic else 'HASEEB HEALTH CLINIC' }}</div>
+                    <div class="brand-subtitle">{{ clinic.tagline if clinic and clinic.tagline else 'Reception Counter & Patient Registry' }}</div>
                 </div>
             </a>
 
@@ -50,6 +54,11 @@
                     <li class="nav-item">
                         <a class="nav-link nav-link-custom {% if request.endpoint == 'doctors' %}active{% endif %}" href="{{ url_for('doctors') }}">
                             <i class="bi bi-person-badge"></i> Doctors & Fees
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link nav-link-custom {% if request.endpoint in ['master', 'master_auth'] %}active{% endif %}" href="{{ url_for('master') }}">
+                            <i class="bi bi-shield-lock-fill text-warning"></i> Master User
                         </a>
                     </li>
                 </ul>
@@ -90,7 +99,7 @@
     <!-- Footer -->
     <footer class="bg-white border-top py-3 text-center text-muted small no-print">
         <div class="container">
-            <span>&copy; {{ current_year or 2026 }} Haseeb Clinic Management System &bull; Single-Counter Reception Desk &bull; SQLite Relational Engine</span>
+            <span>&copy; {{ current_year or 2026 }} {{ clinic.clinic_name if clinic else 'Haseeb Clinic' }} Management System &bull; Reception Counter Desk &bull; SQLite / Supabase Relational Engine</span>
         </div>
     </footer>
 

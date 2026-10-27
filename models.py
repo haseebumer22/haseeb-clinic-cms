@@ -61,3 +61,22 @@ class Doctor(db.Model):
 
     def __repr__(self):
         return f"<Doctor {self.name} - {self.specialty}>"
+
+
+class ClinicSetting(db.Model):
+    __tablename__ = "clinic_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    clinic_name = db.Column(db.String(200), default="HASEEB HEALTH CLINIC", nullable=False)
+    tagline = db.Column(db.String(255), default="Reception Counter & Patient Registry")
+    phone = db.Column(db.String(100), default="(042) 3500-1122")
+    address = db.Column(db.String(255), default="Walk-In OPD • Reception Counter")
+    slip_footer = db.Column(db.String(255), default="Please take a seat in the waiting area. Your token number will be called shortly.")
+    logo_path = db.Column(db.Text, nullable=True, default="")
+    master_pin = db.Column(db.String(100), default="1234")
+    pin_required = db.Column(db.Boolean, default=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    def __repr__(self):
+        return f"<ClinicSetting {self.clinic_name}>"
+

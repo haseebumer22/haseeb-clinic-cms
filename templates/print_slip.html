@@ -49,8 +49,18 @@
     <div class="slip-container">
         <!-- Clinic Header -->
         <div class="slip-header">
-            <div class="slip-clinic-name">HASEEB HEALTH CLINIC</div>
-            <div class="slip-clinic-sub">Walk-In OPD &bull; Reception Counter &bull; Ph: (042) 3500-1122</div>
+            <div class="d-flex align-items-center justify-content-center gap-3">
+                {% if clinic and clinic.logo_path %}
+                    <img src="{{ clinic.logo_path if (clinic.logo_path.startswith('data:') or clinic.logo_path.startswith('http')) else url_for('static', filename=clinic.logo_path) }}" alt="Logo" class="slip-logo-img">
+                {% endif %}
+                <div>
+                    <div class="slip-clinic-name">{{ clinic.clinic_name if clinic else 'HASEEB HEALTH CLINIC' }}</div>
+                    <div class="slip-clinic-sub">
+                        {{ clinic.address if clinic and clinic.address else 'Walk-In OPD &bull; Reception Counter' }} 
+                        {% if clinic and clinic.phone %}&bull; Ph: {{ clinic.phone }}{% endif %}
+                    </div>
+                </div>
+            </div>
             <div class="mt-2">
                 <span class="slip-title-pill">OPD REGISTRATION SLIP</span>
             </div>
@@ -136,7 +146,7 @@
             </div>
             <div class="font-monospace small text-muted mb-2">{{ patient.mr_number }}</div>
             <div class="small text-muted fst-italic">
-                Please take a seat in the waiting area. Your token number will be called shortly.<br>
+                {{ clinic.slip_footer if clinic and clinic.slip_footer else 'Please take a seat in the waiting area. Your token number will be called shortly.' }}<br>
                 Please preserve your MR Number for future visits and follow-ups.
             </div>
         </div>
