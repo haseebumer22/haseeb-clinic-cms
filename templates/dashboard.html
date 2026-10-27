@@ -3,7 +3,7 @@
 {% block title %}Home Dashboard — {{ clinic.clinic_name if clinic else 'Clinic Management System' }}{% endblock %}
 
 {% block content %}
-<!-- Dashboard Welcome & Header -->
+<!-- Dashboard Welcome & Live Sync Header -->
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
     <div>
         <div class="d-flex align-items-center gap-2 mb-1">
@@ -12,6 +12,11 @@
             </span>
             <span class="badge bg-light text-dark border">
                 <i class="bi bi-calendar3 me-1"></i> {{ today_date }}
+            </span>
+            <!-- Live Polling Sync Badge -->
+            <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1 d-inline-flex align-items-center gap-2" id="syncStatusBadge">
+                <span class="live-pulse-dot" id="liveDot"></span>
+                <span id="syncStatusText">Live Sync: Active (15s)</span>
             </span>
         </div>
         <h3 class="fw-bold mb-1 text-dark">
@@ -22,15 +27,26 @@
         </p>
     </div>
 
+    <!-- Right Control Bar -->
     <div class="d-flex align-items-center gap-2 flex-wrap">
+        <!-- Auto-Sync Switch & Manual Refresh Button -->
+        <div class="d-flex align-items-center bg-white border rounded-3 px-3 py-1.5 shadow-sm">
+            <div class="form-check form-switch d-inline-flex align-items-center gap-2 mb-0 me-3">
+                <input class="form-check-input" type="checkbox" id="autoSyncToggle" checked style="cursor: pointer;" title="Toggle automatic data polling every 15s">
+                <label class="form-check-label small fw-semibold text-secondary" for="autoSyncToggle" style="cursor: pointer;">Auto-Poll</label>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-primary border-0 px-2 py-1" id="btnManualSync" onclick="fetchLiveDashboardKpis(true)" title="Fetch fresh database numbers immediately">
+                <i class="bi bi-arrow-repeat me-1" id="syncSpinIcon"></i>
+                <span class="small fw-semibold">Fetch Now</span>
+            </button>
+        </div>
+
+        <a href="#dataFetchingHub" class="btn btn-outline-secondary shadow-sm">
+            <i class="bi bi-database-down me-1"></i> Data Fetcher Hub
+        </a>
+
         <a href="{{ url_for('reception') }}" class="btn btn-primary-clinic shadow-sm">
             <i class="bi bi-person-plus-fill me-1"></i> Open Reception Desk
-        </a>
-        <a href="{{ url_for('visits') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-card-checklist me-1"></i> Today's Queue
-        </a>
-        <a href="{{ url_for('patients') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-people-fill me-1"></i> Patient Directory
         </a>
     </div>
 </div>
@@ -41,10 +57,10 @@
     <div class="col-12 col-sm-6 col-xl-3">
         <div class="stat-card h-100 border-start border-4 border-primary">
             <div>
-                <div class="stat-value text-primary">{{ today_visits }}</div>
+                <div class="stat-value text-primary" id="kpiTodayVisits">{{ today_visits }}</div>
                 <div class="stat-label">Today's Total Visits</div>
                 <div class="text-muted small mt-1">
-                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-1.5 py-0.5">
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-1.5 py-0.5" id="kpiInClinicCount">
                         {{ waiting_count + in_consultation_count }} in clinic
                     </span>
                     <span class="ms-1">queue active</span>
@@ -60,11 +76,11 @@
     <div class="col-12 col-sm-6 col-xl-3">
         <div class="stat-card h-100 border-start border-4 border-success">
             <div>
-                <div class="stat-value text-success">Rs. {{ "%.0f"|format(today_revenue) }}</div>
+                <div class="stat-value text-success" id="kpiTodayRevenue">Rs. {{ "%.0f"|format(today_revenue) }}</div>
                 <div class="stat-label">Today's Revenue</div>
                 <div class="text-muted small mt-1">
                     <span class="badge bg-success-subtle text-success border border-success-subtle px-1.5 py-0.5">
-                        {{ completed_count }} completed
+                        <span id="kpiCompletedSummary">{{ completed_count }}</span> completed
                     </span>
                     <span class="ms-1">paid consultations</span>
                 </div>
@@ -79,11 +95,11 @@
     <div class="col-12 col-sm-6 col-xl-3">
         <div class="stat-card h-100 border-start border-4 border-info">
             <div>
-                <div class="stat-value text-info" style="color: #0284c7 !important;">{{ total_patients }}</div>
+                <div class="stat-value text-info" id="kpiTotalPatients" style="color: #0284c7 !important;">{{ total_patients }}</div>
                 <div class="stat-label">Total Patients in Registry</div>
                 <div class="text-muted small mt-1">
                     <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-1.5 py-0.5">
-                        {{ linked_family_count }} linked
+                        <span id="kpiLinkedFamily">{{ linked_family_count }}</span> linked
                     </span>
                     <span class="ms-1">family accounts</span>
                 </div>
@@ -98,7 +114,7 @@
     <div class="col-12 col-sm-6 col-xl-3">
         <div class="stat-card h-100 border-start border-4 border-warning">
             <div>
-                <div class="stat-value text-warning" style="color: #d97706 !important;">{{ active_doctors }}</div>
+                <div class="stat-value text-warning" id="kpiActiveDoctors" style="color: #d97706 !important;">{{ active_doctors }}</div>
                 <div class="stat-label">Doctors on Duty</div>
                 <div class="text-muted small mt-1">
                     <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-1.5 py-0.5">
@@ -124,32 +140,32 @@
             </div>
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2.5 py-1.5">
-                    <i class="bi bi-hourglass-split me-1"></i> Waiting: <strong>{{ waiting_count }}</strong>
+                    <i class="bi bi-hourglass-split me-1"></i> Waiting: <strong id="kpiWaitingCount">{{ waiting_count }}</strong>
                 </span>
                 <span class="badge bg-info-subtle text-info border border-info-subtle px-2.5 py-1.5">
-                    <i class="bi bi-stethoscope me-1"></i> In Consultation: <strong>{{ in_consultation_count }}</strong>
+                    <i class="bi bi-stethoscope me-1"></i> In Consultation: <strong id="kpiInConsultationCount">{{ in_consultation_count }}</strong>
                 </span>
                 <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1.5">
-                    <i class="bi bi-check-circle-fill me-1"></i> Completed: <strong>{{ completed_count }}</strong>
+                    <i class="bi bi-check-circle-fill me-1"></i> Completed: <strong id="kpiCompletedCount">{{ completed_count }}</strong>
                 </span>
                 <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2.5 py-1.5">
-                    <i class="bi bi-x-circle me-1"></i> Cancelled: <strong>{{ cancelled_count }}</strong>
+                    <i class="bi bi-x-circle me-1"></i> Cancelled: <strong id="kpiCancelledCount">{{ cancelled_count }}</strong>
                 </span>
             </div>
         </div>
 
         {% set total_q = today_visits if today_visits > 0 else 1 %}
         <div class="progress" style="height: 10px; border-radius: 6px;">
-            <div class="progress-bar bg-warning" role="progressbar" style="width: {{ (waiting_count / total_q) * 100 }}%" title="Waiting: {{ waiting_count }}"></div>
-            <div class="progress-bar bg-info" role="progressbar" style="width: {{ (in_consultation_count / total_q) * 100 }}%" title="In Consultation: {{ in_consultation_count }}"></div>
-            <div class="progress-bar bg-success" role="progressbar" style="width: {{ (completed_count / total_q) * 100 }}%" title="Completed: {{ completed_count }}"></div>
-            <div class="progress-bar bg-secondary" role="progressbar" style="width: {{ (cancelled_count / total_q) * 100 }}%" title="Cancelled: {{ cancelled_count }}"></div>
+            <div class="progress-bar bg-warning" id="barWaiting" role="progressbar" style="width: {{ (waiting_count / total_q) * 100 }}%" title="Waiting: {{ waiting_count }}"></div>
+            <div class="progress-bar bg-info" id="barInConsultation" role="progressbar" style="width: {{ (in_consultation_count / total_q) * 100 }}%" title="In Consultation: {{ in_consultation_count }}"></div>
+            <div class="progress-bar bg-success" id="barCompleted" role="progressbar" style="width: {{ (completed_count / total_q) * 100 }}%" title="Completed: {{ completed_count }}"></div>
+            <div class="progress-bar bg-secondary" id="barCancelled" role="progressbar" style="width: {{ (cancelled_count / total_q) * 100 }}%" title="Cancelled: {{ cancelled_count }}"></div>
         </div>
     </div>
 </div>
 
 <!-- Main Dashboard Layout -->
-<div class="row g-4">
+<div class="row g-4 mb-4">
     <!-- LEFT COLUMN: Doctor Load & Live Visits Table -->
     <div class="col-12 col-xl-8">
         <!-- Active Doctors Load Roster -->
@@ -161,9 +177,9 @@
                 <span class="badge bg-primary-subtle text-primary">{{ doctor_stats|length }} Doctors Active</span>
             </div>
             <div class="clinic-card-body p-3">
-                <div class="row g-3">
+                <div class="row g-3" id="doctorRosterRow">
                     {% for item in doctor_stats %}
-                    <div class="col-12 col-md-6">
+                    <div class="col-12 col-md-6" id="docCard_{{ item.doctor.id }}">
                         <div class="p-3 rounded-3 border bg-light h-100 d-flex flex-column justify-content-between">
                             <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
                                 <div>
@@ -185,13 +201,13 @@
                                 </div>
                                 <div>
                                     <span class="text-muted">Today:</span>
-                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle" id="docVisits_{{ item.doctor.id }}">
                                         {{ item.visits_today }} visits
                                     </span>
                                 </div>
                                 <div>
                                     <span class="text-muted">Next:</span>
-                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle" id="docNext_{{ item.doctor.id }}">
                                         Token #{{ "%02d"|format(item.next_token) }}
                                     </span>
                                 </div>
@@ -209,12 +225,14 @@
                 <h5 class="clinic-card-title mb-0">
                     <i class="bi bi-card-checklist text-primary me-2"></i> Live Queue Activity & Registration Slips
                 </h5>
-                <a href="{{ url_for('visits') }}" class="btn btn-outline-primary btn-sm">
-                    View Full Queue <i class="bi bi-arrow-right ms-1"></i>
-                </a>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-light text-muted border small" id="lastFetchTimestamp">Synced</span>
+                    <a href="{{ url_for('visits') }}" class="btn btn-outline-primary btn-sm">
+                        View Full Queue <i class="bi bi-arrow-right ms-1"></i>
+                    </a>
+                </div>
             </div>
             <div class="clinic-card-body p-0">
-                {% if recent_visits %}
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
@@ -228,7 +246,7 @@
                                 <th class="text-end pe-3">Action</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="recentVisitsTbody">
                             {% for v in recent_visits %}
                             <tr>
                                 <td class="ps-3">
@@ -267,19 +285,20 @@
                                     </a>
                                 </td>
                             </tr>
+                            {% else %}
+                            <tr id="emptyVisitsRow">
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                                    <p class="mb-2">No visits registered today yet.</p>
+                                    <a href="{{ url_for('reception') }}" class="btn btn-primary-clinic btn-sm">
+                                        <i class="bi bi-person-plus-fill me-1"></i> Register First Patient
+                                    </a>
+                                </td>
+                            </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-                {% else %}
-                <div class="text-center py-5 text-muted">
-                    <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
-                    <p class="mb-2">No visits registered today yet.</p>
-                    <a href="{{ url_for('reception') }}" class="btn btn-primary-clinic btn-sm">
-                        <i class="bi bi-person-plus-fill me-1"></i> Register First Patient
-                    </a>
-                </div>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -359,7 +378,7 @@
                 <a href="{{ url_for('patients') }}" class="small text-decoration-none">All Patients</a>
             </div>
             <div class="clinic-card-body p-0">
-                <ul class="list-group list-group-flush">
+                <ul class="list-group list-group-flush" id="recentPatientsList">
                     {% for p in recent_patients %}
                     <li class="list-group-item px-3 py-2.5 d-flex align-items-center justify-content-between">
                         <div>
@@ -385,4 +404,816 @@
         </div>
     </div>
 </div>
+
+<!-- ================================================================= -->
+<!-- COMPREHENSIVE LIVE DATA FETCHING & CLINIC INTELLIGENCE HUB       -->
+<!-- ================================================================= -->
+<div class="clinic-card mb-5" id="dataFetchingHub">
+    <div class="clinic-card-header bg-white border-bottom p-3">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="badge bg-primary text-white fw-bold px-2.5 py-1">
+                        <i class="bi bi-database-down me-1"></i> ASYNC DATA FETCHING ENGINE
+                    </span>
+                    <span class="badge bg-light text-dark border">
+                        REST API &bull; JSON &bull; Excel (.xlsx)
+                    </span>
+                </div>
+                <h4 class="fw-bold mb-0 text-dark">
+                    <i class="bi bi-cpu-fill text-primary me-2"></i> All Stored Clinic Data Fetcher & Analytics
+                </h4>
+                <p class="text-muted small mb-0">
+                    Query, stream, filter, and extract all patient and daily visit records stored in PostgreSQL / SQLite database.
+                </p>
+            </div>
+
+            <!-- Tab Pills -->
+            <ul class="nav nav-pills data-hub-tab" id="dataHubTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="tab-daily-visits" data-bs-toggle="pill" data-bs-target="#pane-daily-visits" type="button" role="tab">
+                        <i class="bi bi-calendar2-range"></i> Daily Visits Fetcher
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-all-patients" data-bs-toggle="pill" data-bs-target="#pane-all-patients" type="button" role="tab">
+                        <i class="bi bi-people-fill"></i> All Stored Patients
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-data-backup" data-bs-toggle="pill" data-bs-target="#pane-data-backup" type="button" role="tab">
+                        <i class="bi bi-cloud-arrow-down-fill"></i> Data Export & API Hub
+                    </button>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="clinic-card-body p-4">
+        <div class="tab-content" id="dataHubTabsContent">
+            <!-- ============================================== -->
+            <!-- TAB 1: DAILY VISITS DATA FETCHER              -->
+            <!-- ============================================== -->
+            <div class="tab-pane fade show active" id="pane-daily-visits" role="tabpanel">
+                <!-- Filter & Fetch Controls -->
+                <div class="data-card-banner mb-3">
+                    <form id="visitsFetchForm" class="row g-2 align-items-center" onsubmit="event.preventDefault(); fetchDailyVisits();">
+                        <div class="col-12 col-sm-6 col-md-3">
+                            <label class="form-label small fw-semibold text-secondary mb-1">Visit Date</label>
+                            <input type="date" class="form-control form-control-sm" id="fetchVisitDate" value="{{ today_iso }}">
+                        </div>
+
+                        <div class="col-12 col-sm-6 col-md-3">
+                            <label class="form-label small fw-semibold text-secondary mb-1">Doctor</label>
+                            <select class="form-select form-select-sm" id="fetchVisitDoctor">
+                                <option value="all">All Consulting Doctors</option>
+                                {% for doc in doctors %}
+                                <option value="{{ doc.name }}">{{ doc.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="col-6 col-sm-4 col-md-2">
+                            <label class="form-label small fw-semibold text-secondary mb-1">Status</label>
+                            <select class="form-select form-select-sm" id="fetchVisitStatus">
+                                <option value="all">All Statuses</option>
+                                <option value="Waiting">Waiting</option>
+                                <option value="In Consultation">In Consultation</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Cancelled">Cancelled</option>
+                            </select>
+                        </div>
+
+                        <div class="col-6 col-sm-4 col-md-2">
+                            <label class="form-label small fw-semibold text-secondary mb-1">Search Patient</label>
+                            <input type="text" class="form-control form-control-sm" id="fetchVisitSearch" placeholder="Name or MR...">
+                        </div>
+
+                        <div class="col-12 col-sm-4 col-md-2 d-flex align-items-end gap-1 mt-3 mt-md-0">
+                            <button type="button" class="btn btn-primary-clinic btn-sm w-100 fw-bold" onclick="fetchDailyVisits()">
+                                <i class="bi bi-cloud-arrow-down-fill me-1" id="visitsBtnIcon"></i> Fetch
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setVisitsFilterToday()" title="Reset to Today">
+                                Today
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setVisitsFilterAll()" title="Fetch All Stored Time">
+                                All
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Stats Bar -->
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 p-2 px-3 bg-light rounded-3 border mb-3">
+                    <div class="d-flex align-items-center gap-3 flex-wrap">
+                        <span class="small text-muted">
+                            <i class="bi bi-clock-history me-1"></i> Date: <strong class="text-dark" id="visitsResultDate">{{ today_date }}</strong>
+                        </span>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">
+                            Fetched: <strong id="visitsResultCount">{{ today_visits }}</strong> visits
+                        </span>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1">
+                            Total Revenue: <strong id="visitsResultRevenue">Rs. {{ "%.0f"|format(today_revenue) }}</strong>
+                        </span>
+                        <span class="small text-muted" id="visitsFetchLatency"></span>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <a href="{{ url_for('export_visits_excel') }}?date={{ today_iso }}" id="btnExportVisitsExcel" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-file-earmark-excel me-1"></i> Export to Excel
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Fetched Visits Table -->
+                <div class="table-responsive border rounded-3" style="max-height: 480px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0" id="fetchedVisitsTable">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th class="ps-3">Token</th>
+                                <th>Date & Time</th>
+                                <th>MR Number</th>
+                                <th>Patient Name</th>
+                                <th>Doctor & Dept</th>
+                                <th>Symptoms / Notes</th>
+                                <th>Fee</th>
+                                <th>Status</th>
+                                <th class="text-end pe-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fetchedVisitsTbody">
+                            <tr>
+                                <td colspan="9" class="text-center py-4 text-muted">
+                                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                    <span>Fetching visits data from database...</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- TAB 2: ALL STORED PATIENTS DATA FETCHER        -->
+            <!-- ============================================== -->
+            <div class="tab-pane fade" id="pane-all-patients" role="tabpanel">
+                <!-- Filter & Search Controls -->
+                <div class="data-card-banner mb-3">
+                    <form id="patientsFetchForm" class="row g-2 align-items-center" onsubmit="event.preventDefault(); fetchAllPatients();">
+                        <div class="col-12 col-md-5">
+                            <label class="form-label small fw-semibold text-secondary mb-1">Search Patient Registry</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" class="form-control" id="fetchPatientQuery" placeholder="Search by Full Name, MR Number, Phone Number, or Address...">
+                            </div>
+                        </div>
+
+                        <div class="col-6 col-md-2">
+                            <label class="form-label small fw-semibold text-secondary mb-1">Sort By</label>
+                            <select class="form-select form-select-sm" id="fetchPatientSort">
+                                <option value="newest">Newest First</option>
+                                <option value="oldest">Oldest First</option>
+                                <option value="name">Patient Name (A-Z)</option>
+                            </select>
+                        </div>
+
+                        <div class="col-6 col-md-2">
+                            <label class="form-label small fw-semibold text-secondary mb-1">Record Limit</label>
+                            <select class="form-select form-select-sm" id="fetchPatientLimit">
+                                <option value="50">50 records</option>
+                                <option value="100" selected>100 records</option>
+                                <option value="500">500 records</option>
+                                <option value="all">All Stored Records</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-md-3 d-flex align-items-end gap-1 mt-3 mt-md-0">
+                            <button type="button" class="btn btn-primary-clinic btn-sm w-100 fw-bold" onclick="fetchAllPatients()">
+                                <i class="bi bi-cloud-arrow-down-fill me-1" id="patientsBtnIcon"></i> Fetch Patients
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearPatientFilters()" title="Reset Filters">
+                                Reset
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Stats Bar -->
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 p-2 px-3 bg-light rounded-3 border mb-3">
+                    <div class="d-flex align-items-center gap-3 flex-wrap">
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">
+                            Matching in Database: <strong id="patientsTotalCount">{{ total_patients }}</strong>
+                        </span>
+                        <span class="badge bg-info-subtle text-info border border-info-subtle px-2.5 py-1">
+                            Fetched: <strong id="patientsFetchedCount">0</strong>
+                        </span>
+                        <span class="small text-muted" id="patientsFetchLatency"></span>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <a href="{{ url_for('export_patients') }}" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-file-earmark-excel me-1"></i> Export Full Directory (Excel)
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Fetched Patients Table -->
+                <div class="table-responsive border rounded-3" style="max-height: 480px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0" id="fetchedPatientsTable">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th class="ps-3">MR Number</th>
+                                <th>Patient Name</th>
+                                <th>Phone Number</th>
+                                <th>Age / Gender</th>
+                                <th>Blood Group</th>
+                                <th>Family Relation</th>
+                                <th>Registered</th>
+                                <th>Visits</th>
+                                <th class="text-end pe-3">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fetchedPatientsTbody">
+                            <tr>
+                                <td colspan="9" class="text-center py-4 text-muted">
+                                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                    <span>Fetching patient directory...</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- TAB 3: DATA EXPORT & API EXPLORER              -->
+            <!-- ============================================== -->
+            <div class="tab-pane fade" id="pane-data-backup" role="tabpanel">
+                <div class="row g-4">
+                    <div class="col-12 col-lg-6">
+                        <div class="border rounded-3 p-3 bg-light h-100">
+                            <h6 class="fw-bold text-dark mb-2">
+                                <i class="bi bi-file-earmark-arrow-down-fill text-primary me-2"></i> Instant Data Export & Backup Downloads
+                            </h6>
+                            <p class="text-muted small mb-3">Download comprehensive snapshots of your database in standard portable formats for offline review, archiving, or auditing.</p>
+
+                            <div class="d-flex flex-column gap-2">
+                                <a href="{{ url_for('api_export_json') }}" class="btn btn-outline-primary d-flex align-items-center justify-content-between p-2.5 text-start bg-white">
+                                    <div>
+                                        <strong class="d-block text-dark"><i class="bi bi-filetype-json text-warning me-2 fs-5"></i> Complete Clinic JSON Snapshot</strong>
+                                        <small class="text-muted">All registered patients, historical visits, doctor profiles, and clinic metadata</small>
+                                    </div>
+                                    <i class="bi bi-download fs-5 text-primary"></i>
+                                </a>
+
+                                <a href="{{ url_for('export_visits_excel') }}?date=all" class="btn btn-outline-success d-flex align-items-center justify-content-between p-2.5 text-start bg-white">
+                                    <div>
+                                        <strong class="d-block text-dark"><i class="bi bi-file-earmark-excel text-success me-2 fs-5"></i> All-Time Visits Log (.xlsx)</strong>
+                                        <small class="text-muted">Complete consultation queue archive with revenue calculations</small>
+                                    </div>
+                                    <i class="bi bi-download fs-5 text-success"></i>
+                                </a>
+
+                                <a href="{{ url_for('export_patients') }}" class="btn btn-outline-info d-flex align-items-center justify-content-between p-2.5 text-start bg-white">
+                                    <div>
+                                        <strong class="d-block text-dark"><i class="bi bi-people-fill text-info me-2 fs-5"></i> Master Patient Directory (.xlsx)</strong>
+                                        <small class="text-muted">All patient records, contact numbers, family relations, and MR numbers</small>
+                                    </div>
+                                    <i class="bi bi-download fs-5 text-info"></i>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-lg-6">
+                        <div class="border rounded-3 p-3 bg-light h-100">
+                            <h6 class="fw-bold text-dark mb-2">
+                                <i class="bi bi-code-slash text-primary me-2"></i> Programmatic REST API Endpoints
+                            </h6>
+                            <p class="text-muted small mb-3">Fetch real-time clinical data directly via asynchronous RESTful HTTP GET requests in JSON format.</p>
+
+                            <div class="d-flex flex-column gap-3">
+                                <div>
+                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <span class="badge bg-success text-white fw-bold">GET</span>
+                                        <span class="api-code-pill">/api/data/dashboard-kpis</span>
+                                        <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="testApiEndpoint('/api/data/dashboard-kpis')">Test</button>
+                                    </div>
+                                    <small class="text-muted d-block">Returns real-time KPIs, revenue, queue distribution, and doctor workload.</small>
+                                </div>
+
+                                <div class="border-top pt-2">
+                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <span class="badge bg-success text-white fw-bold">GET</span>
+                                        <span class="api-code-pill">/api/data/daily-visits?date=YYYY-MM-DD</span>
+                                        <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="testApiEndpoint('/api/data/daily-visits')">Test</button>
+                                    </div>
+                                    <small class="text-muted d-block">Returns daily consultations with filtering by doctor, status, and patient search.</small>
+                                </div>
+
+                                <div class="border-top pt-2">
+                                    <div class="d-flex align-items-center justify-content-between mb-1">
+                                        <span class="badge bg-success text-white fw-bold">GET</span>
+                                        <span class="api-code-pill">/api/data/patients?search=QUERY</span>
+                                        <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="testApiEndpoint('/api/data/patients?limit=5')">Test</button>
+                                    </div>
+                                    <small class="text-muted d-block">Returns registered patient records, family relations, and total visits count.</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- API Response Preview Modal -->
+<div class="modal fade" id="apiModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h6 class="modal-title font-monospace" id="apiModalTitle">API Response</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <pre class="bg-dark text-info p-3 mb-0" style="max-height: 400px; overflow-y: auto; font-size: 0.82rem;" id="apiModalContent"></pre>
+            </div>
+            <div class="modal-footer bg-light py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// =================================================================
+// FRONTEND ASYNC DATA FETCHING ENGINE & REAL-TIME DASHBOARD SYNC
+// =================================================================
+
+let autoSyncTimer = null;
+const AUTO_SYNC_INTERVAL_MS = 15000; // 15 seconds
+
+// -------------------------------------------------------------
+// 1. LIVE DASHBOARD KPIS FETCHER
+// -------------------------------------------------------------
+async function fetchLiveDashboardKpis(isManual = false) {
+    const spinIcon = document.getElementById('syncSpinIcon');
+    const syncStatusText = document.getElementById('syncStatusText');
+    const liveDot = document.getElementById('liveDot');
+
+    if (spinIcon) spinIcon.classList.add('spin-animate');
+    if (syncStatusText && isManual) syncStatusText.textContent = 'Fetching fresh data...';
+
+    const startTime = performance.now();
+    try {
+        const response = await fetch('/api/data/dashboard-kpis', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+        const data = await response.json();
+        const duration = Math.round(performance.now() - startTime);
+
+        if (data.status === 'success' && data.kpis) {
+            const k = data.kpis;
+            // Update primary KPIs
+            animateValue('kpiTodayVisits', k.today_visits);
+            animateCurrency('kpiTodayRevenue', k.today_revenue);
+            animateValue('kpiTotalPatients', k.total_patients);
+            animateValue('kpiActiveDoctors', k.active_doctors);
+
+            // Update queue distribution
+            const inClinicCount = (k.waiting_count || 0) + (k.in_consultation_count || 0);
+            const inClinicBadge = document.getElementById('kpiInClinicCount');
+            if (inClinicBadge) inClinicBadge.textContent = `${inClinicCount} in clinic`;
+
+            const completedSummary = document.getElementById('kpiCompletedSummary');
+            if (completedSummary) completedSummary.textContent = k.completed_count || 0;
+
+            const linkedFamily = document.getElementById('kpiLinkedFamily');
+            if (linkedFamily) linkedFamily.textContent = k.linked_family_count || 0;
+
+            const elWait = document.getElementById('kpiWaitingCount');
+            if (elWait) elWait.textContent = k.waiting_count || 0;
+            const elInCons = document.getElementById('kpiInConsultationCount');
+            if (elInCons) elInCons.textContent = k.in_consultation_count || 0;
+            const elComp = document.getElementById('kpiCompletedCount');
+            if (elComp) elComp.textContent = k.completed_count || 0;
+            const elCanc = document.getElementById('kpiCancelledCount');
+            if (elCanc) elCanc.textContent = k.cancelled_count || 0;
+
+            // Update queue progress bars
+            const totalQ = (k.today_visits > 0) ? k.today_visits : 1;
+            updateProgressBar('barWaiting', (k.waiting_count / totalQ) * 100);
+            updateProgressBar('barInConsultation', (k.in_consultation_count / totalQ) * 100);
+            updateProgressBar('barCompleted', (k.completed_count / totalQ) * 100);
+            updateProgressBar('barCancelled', (k.cancelled_count / totalQ) * 100);
+
+            // Update doctor load cards
+            if (data.doctor_stats && Array.isArray(data.doctor_stats)) {
+                data.doctor_stats.forEach(doc => {
+                    const elV = document.getElementById(`docVisits_${doc.id}`);
+                    if (elV) elV.textContent = `${doc.visits_today} visits`;
+                    const elN = document.getElementById(`docNext_${doc.id}`);
+                    if (elN) elN.textContent = `Token #${String(doc.next_token).padStart(2, '0')}`;
+                });
+            }
+
+            // Update recent visits table if provided
+            if (data.recent_visits && data.recent_visits.length > 0) {
+                renderRecentVisitsTable(data.recent_visits);
+            }
+
+            // Update sync label
+            const lastFetch = document.getElementById('lastFetchTimestamp');
+            if (lastFetch) lastFetch.textContent = `Synced ${data.timestamp} (${duration}ms)`;
+            if (syncStatusText) syncStatusText.textContent = `Live Sync: ${data.timestamp}`;
+            if (liveDot) liveDot.style.backgroundColor = '#10b981';
+        }
+    } catch (err) {
+        console.error('Error fetching dashboard KPIs:', err);
+        if (syncStatusText) syncStatusText.textContent = 'Sync Offline';
+        if (liveDot) liveDot.style.backgroundColor = '#ef4444';
+    } finally {
+        if (spinIcon) spinIcon.classList.remove('spin-animate');
+    }
+}
+
+function updateProgressBar(id, percent) {
+    const el = document.getElementById(id);
+    if (el) el.style.width = `${Math.min(Math.max(percent, 0), 100)}%`;
+}
+
+function animateValue(id, targetVal) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = targetVal;
+}
+
+function animateCurrency(id, amount) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = `Rs. ${Math.round(amount).toLocaleString()}`;
+}
+
+function renderRecentVisitsTable(visits) {
+    const tbody = document.getElementById('recentVisitsTbody');
+    if (!tbody) return;
+
+    tbody.innerHTML = visits.map(v => {
+        let badgeHtml = '';
+        if (v.status === 'Waiting') {
+            badgeHtml = '<span class="badge bg-warning-subtle text-warning border border-warning-subtle">Waiting</span>';
+        } else if (v.status === 'In Consultation') {
+            badgeHtml = '<span class="badge bg-info-subtle text-info border border-info-subtle">In Consultation</span>';
+        } else if (v.status === 'Completed') {
+            badgeHtml = '<span class="badge bg-success-subtle text-success border border-success-subtle">Completed</span>';
+        } else {
+            badgeHtml = `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">${escapeHtml(v.status)}</span>`;
+        }
+
+        return `
+            <tr>
+                <td class="ps-3">
+                    <span class="badge bg-primary text-white fw-bold fs-6">
+                        #${String(v.token_number).padStart(2, '0')}
+                    </span>
+                </td>
+                <td><span class="badge-mr">${escapeHtml(v.mr_number)}</span></td>
+                <td>
+                    <strong class="text-dark d-block">${escapeHtml(v.patient_name)}</strong>
+                    <span class="text-muted small">${v.age}y &bull; ${escapeHtml(v.gender)}</span>
+                </td>
+                <td>
+                    <span class="text-dark fw-semibold">${escapeHtml(v.doctor_name)}</span>
+                    <span class="text-muted d-block small">${escapeHtml(v.department)}</span>
+                </td>
+                <td><strong class="text-success">Rs. ${Math.round(v.fee)}</strong></td>
+                <td>${badgeHtml}</td>
+                <td class="text-end pe-3">
+                    <a href="/print/${v.id}" class="btn btn-sm btn-outline-secondary" title="Print OPD Slip">
+                        <i class="bi bi-printer"></i>
+                    </a>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// -------------------------------------------------------------
+// 2. DAILY VISITS DATA FETCHER (TAB 1)
+// -------------------------------------------------------------
+async function fetchDailyVisits() {
+    const tbody = document.getElementById('fetchedVisitsTbody');
+    const dateVal = document.getElementById('fetchVisitDate').value;
+    const docVal = document.getElementById('fetchVisitDoctor').value;
+    const statusVal = document.getElementById('fetchVisitStatus').value;
+    const searchVal = document.getElementById('fetchVisitSearch').value.trim();
+    const btnIcon = document.getElementById('visitsBtnIcon');
+
+    if (btnIcon) btnIcon.className = 'spinner-border spinner-border-sm me-1';
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="9" class="text-center py-4 text-muted">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                <span>Streaming visit records from database...</span>
+            </td>
+        </tr>
+    `;
+
+    const params = new URLSearchParams();
+    if (dateVal) params.append('date', dateVal);
+    if (docVal && docVal !== 'all') params.append('doctor', docVal);
+    if (statusVal && statusVal !== 'all') params.append('status', statusVal);
+    if (searchVal) params.append('search', searchVal);
+
+    const startTime = performance.now();
+    try {
+        const response = await fetch(`/api/data/daily-visits?${params.toString()}`);
+        if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+        const data = await response.json();
+        const duration = Math.round(performance.now() - startTime);
+
+        document.getElementById('visitsResultDate').textContent = data.date_filtered || 'Filtered';
+        document.getElementById('visitsResultCount').textContent = data.fetched_count;
+        document.getElementById('visitsResultRevenue').textContent = `Rs. ${Math.round(data.total_revenue || 0).toLocaleString()}`;
+        document.getElementById('visitsFetchLatency').textContent = `(Fetched in ${duration}ms)`;
+
+        // Update Excel download link to mirror current filter
+        const excelBtn = document.getElementById('btnExportVisitsExcel');
+        if (excelBtn) {
+            excelBtn.href = `/visits/export-excel?date=${encodeURIComponent(dateVal)}&doctor=${encodeURIComponent(docVal)}`;
+        }
+
+        if (!data.visits || data.visits.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center py-5 text-muted">
+                        <i class="bi bi-calendar-x fs-2 d-block mb-2 text-secondary"></i>
+                        <strong>No visits matched the specified filter criteria.</strong>
+                        <div class="small mt-1">Try changing the date, doctor, or clearing the patient search filter.</div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = data.visits.map(v => {
+            let statusBadge = '';
+            if (v.status === 'Waiting') {
+                statusBadge = '<span class="badge bg-warning-subtle text-warning border border-warning-subtle">Waiting</span>';
+            } else if (v.status === 'In Consultation') {
+                statusBadge = '<span class="badge bg-info-subtle text-info border border-info-subtle">In Consultation</span>';
+            } else if (v.status === 'Completed') {
+                statusBadge = '<span class="badge bg-success-subtle text-success border border-success-subtle">Completed</span>';
+            } else {
+                statusBadge = `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">${escapeHtml(v.status)}</span>`;
+            }
+
+            return `
+                <tr>
+                    <td class="ps-3">
+                        <span class="badge bg-primary text-white fw-bold fs-6">
+                            #${String(v.token_number).padStart(2, '0')}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="text-dark fw-semibold d-block small">${v.visit_date}</span>
+                        <span class="text-muted small">${v.visit_time}</span>
+                    </td>
+                    <td><span class="badge-mr">${escapeHtml(v.mr_number)}</span></td>
+                    <td>
+                        <strong class="text-dark d-block">${escapeHtml(v.patient_name)}</strong>
+                        <span class="text-muted small">${v.age}y &bull; ${escapeHtml(v.gender)} &bull; ${escapeHtml(v.phone_number)}</span>
+                    </td>
+                    <td>
+                        <span class="text-dark fw-semibold d-block">${escapeHtml(v.doctor_name)}</span>
+                        <span class="text-muted small">${escapeHtml(v.department)}</span>
+                    </td>
+                    <td><span class="text-muted small text-truncate d-inline-block" style="max-width: 180px;">${escapeHtml(v.symptoms || 'General Checkup')}</span></td>
+                    <td><strong class="text-success">Rs. ${Math.round(v.fee)}</strong></td>
+                    <td>${statusBadge}</td>
+                    <td class="text-end pe-3">
+                        <a href="${v.print_url}" class="btn btn-sm btn-outline-secondary" title="Print Slip">
+                            <i class="bi bi-printer"></i>
+                        </a>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="text-center py-4 text-danger">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Failed to fetch visits data: ${err.message}
+                </td>
+            </tr>
+        `;
+    } finally {
+        if (btnIcon) btnIcon.className = 'bi bi-cloud-arrow-down-fill me-1';
+    }
+}
+
+function setVisitsFilterToday() {
+    document.getElementById('fetchVisitDate').value = '{{ today_iso }}';
+    document.getElementById('fetchVisitDoctor').value = 'all';
+    document.getElementById('fetchVisitStatus').value = 'all';
+    document.getElementById('fetchVisitSearch').value = '';
+    fetchDailyVisits();
+}
+
+function setVisitsFilterAll() {
+    document.getElementById('fetchVisitDate').value = '';
+    document.getElementById('fetchVisitDoctor').value = 'all';
+    document.getElementById('fetchVisitStatus').value = 'all';
+    document.getElementById('fetchVisitSearch').value = '';
+    fetchDailyVisits();
+}
+
+// -------------------------------------------------------------
+// 3. ALL STORED PATIENTS DATA FETCHER (TAB 2)
+// -------------------------------------------------------------
+async function fetchAllPatients() {
+    const tbody = document.getElementById('fetchedPatientsTbody');
+    const queryVal = document.getElementById('fetchPatientQuery').value.trim();
+    const sortVal = document.getElementById('fetchPatientSort').value;
+    const limitVal = document.getElementById('fetchPatientLimit').value;
+    const btnIcon = document.getElementById('patientsBtnIcon');
+
+    if (btnIcon) btnIcon.className = 'spinner-border spinner-border-sm me-1';
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="9" class="text-center py-4 text-muted">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                <span>Fetching patient registry from database...</span>
+            </td>
+        </tr>
+    `;
+
+    const params = new URLSearchParams();
+    if (queryVal) params.append('search', queryVal);
+    if (sortVal) params.append('sort', sortVal);
+    if (limitVal) params.append('limit', limitVal);
+
+    const startTime = performance.now();
+    try {
+        const response = await fetch(`/api/data/patients?${params.toString()}`);
+        if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+        const data = await response.json();
+        const duration = Math.round(performance.now() - startTime);
+
+        document.getElementById('patientsTotalCount').textContent = data.total_count || 0;
+        document.getElementById('patientsFetchedCount').textContent = data.fetched_count || 0;
+        document.getElementById('patientsFetchLatency').textContent = `(Fetched in ${duration}ms)`;
+
+        if (!data.patients || data.patients.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center py-5 text-muted">
+                        <i class="bi bi-person-x fs-2 d-block mb-2 text-secondary"></i>
+                        <strong>No patients found matching the search query.</strong>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = data.patients.map(p => {
+            let relHtml = '<span class="text-muted small">Self</span>';
+            if (p.is_family_member) {
+                relHtml = `<span class="badge bg-info-subtle text-info border border-info-subtle small">${escapeHtml(p.relation_to_primary || 'Family')}</span>`;
+            }
+
+            return `
+                <tr>
+                    <td class="ps-3"><span class="badge-mr">${escapeHtml(p.mr_number)}</span></td>
+                    <td>
+                        <strong class="text-dark d-block">${escapeHtml(p.patient_name)}</strong>
+                        <span class="text-muted small">${escapeHtml(p.address || 'Address not listed')}</span>
+                    </td>
+                    <td>
+                        <a href="tel:${escapeHtml(p.phone_number)}" class="text-decoration-none text-dark fw-semibold small">
+                            <i class="bi bi-telephone text-primary me-1"></i>${escapeHtml(p.phone_number)}
+                        </a>
+                    </td>
+                    <td><span class="small">${p.age}y &bull; ${escapeHtml(p.gender)}</span></td>
+                    <td><span class="badge bg-light text-dark border small">${escapeHtml(p.blood_group || 'N/A')}</span></td>
+                    <td>${relHtml}</td>
+                    <td><span class="text-muted small">${escapeHtml(p.created_at)}</span></td>
+                    <td>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold">
+                            ${p.total_visits} visit${p.total_visits === 1 ? '' : 's'}
+                        </span>
+                    </td>
+                    <td class="text-end pe-3">
+                        <a href="/reception" class="btn btn-sm btn-outline-primary" title="Book New OPD Visit">
+                            <i class="bi bi-plus-circle me-1"></i> Token
+                        </a>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="text-center py-4 text-danger">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Failed to fetch patient data: ${err.message}
+                </td>
+            </tr>
+        `;
+    } finally {
+        if (btnIcon) btnIcon.className = 'bi bi-cloud-arrow-down-fill me-1';
+    }
+}
+
+function clearPatientFilters() {
+    document.getElementById('fetchPatientQuery').value = '';
+    document.getElementById('fetchPatientSort').value = 'newest';
+    document.getElementById('fetchPatientLimit').value = '100';
+    fetchAllPatients();
+}
+
+// -------------------------------------------------------------
+// 4. API TEST MODAL HELPER
+// -------------------------------------------------------------
+async function testApiEndpoint(url) {
+    const modalEl = document.getElementById('apiModal');
+    const modal = new bootstrap.Modal(modalEl);
+    document.getElementById('apiModalTitle').textContent = `GET ${url}`;
+    document.getElementById('apiModalContent').textContent = 'Fetching JSON payload from server...';
+    modal.show();
+
+    try {
+        const res = await fetch(url);
+        const json = await res.json();
+        document.getElementById('apiModalContent').textContent = JSON.stringify(json, null, 2);
+    } catch (e) {
+        document.getElementById('apiModalContent').textContent = `Error: ${e.message}`;
+    }
+}
+
+// -------------------------------------------------------------
+// 5. HELPER: ESCAPE HTML
+// -------------------------------------------------------------
+function escapeHtml(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+// -------------------------------------------------------------
+// 6. INITIALIZATION & AUTO-POLLING LIFECYCLE
+// -------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Initial live dashboard KPI fetch
+    fetchLiveDashboardKpis(false);
+
+    // 2. Initial fetch for Daily Visits and All Patients tabs
+    fetchDailyVisits();
+    fetchAllPatients();
+
+    // 3. Setup Auto-sync interval
+    autoSyncTimer = setInterval(() => {
+        const toggle = document.getElementById('autoSyncToggle');
+        if (toggle && toggle.checked) {
+            fetchLiveDashboardKpis(false);
+        }
+    }, AUTO_SYNC_INTERVAL_MS);
+
+    // 4. Handle auto-sync toggle state changes
+    const toggle = document.getElementById('autoSyncToggle');
+    if (toggle) {
+        toggle.addEventListener('change', () => {
+            const syncStatusText = document.getElementById('syncStatusText');
+            const liveDot = document.getElementById('liveDot');
+            if (toggle.checked) {
+                if (syncStatusText) syncStatusText.textContent = 'Live Sync: Active (15s)';
+                if (liveDot) liveDot.style.backgroundColor = '#10b981';
+                fetchLiveDashboardKpis(true);
+            } else {
+                if (syncStatusText) syncStatusText.textContent = 'Live Sync: Paused';
+                if (liveDot) liveDot.style.backgroundColor = '#94a3b8';
+            }
+        });
+    }
+
+    // 5. Auto fetch on filter changes
+    const fetchVisitDate = document.getElementById('fetchVisitDate');
+    const fetchVisitDoctor = document.getElementById('fetchVisitDoctor');
+    const fetchVisitStatus = document.getElementById('fetchVisitStatus');
+    if (fetchVisitDate) fetchVisitDate.addEventListener('change', () => fetchDailyVisits());
+    if (fetchVisitDoctor) fetchVisitDoctor.addEventListener('change', () => fetchDailyVisits());
+    if (fetchVisitStatus) fetchVisitStatus.addEventListener('change', () => fetchDailyVisits());
+
+    const fetchPatientSort = document.getElementById('fetchPatientSort');
+    const fetchPatientLimit = document.getElementById('fetchPatientLimit');
+    if (fetchPatientSort) fetchPatientSort.addEventListener('change', () => fetchAllPatients());
+    if (fetchPatientLimit) fetchPatientLimit.addEventListener('change', () => fetchAllPatients());
+});
+</script>
 {% endblock %}

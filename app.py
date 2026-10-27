@@ -251,10 +251,12 @@ def index():
         completed_count=completed_count,
         cancelled_count=cancelled_count,
         doctor_stats=doctor_stats,
+        doctors=doctors,
         recent_visits=recent_visits,
         recent_patients=recent_patients,
         linked_family_count=linked_family_count,
-        today_date=date.today().strftime("%A, %d %B %Y")
+        today_date=date.today().strftime("%A, %d %B %Y"),
+        today_iso=date.today().isoformat()
     )
 
 @app.route("/reception")
@@ -988,6 +990,428 @@ def search_patient_api():
             "last_visit": p.visits[0].visit_datetime.strftime("%d-%b-%Y %I:%M %p") if p.visits else "None"
         })
     return jsonify(results)
+
+# ==========================================
+# DATA FETCHING REST APIS & EXPORT ENGINE
+# ==========================================
+
+@app.route("/api/data/dashboard-kpis")
+def api_dashboard_kpis():
+    """Fetch real-time KPI metrics, revenue, queue distribution, and doctor workload as JSON."""
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    total_patients = Patient.query.count()
+    today_visits = Visit.query.filter(Visit.visit_datetime >= today_start).count()
+    
+    today_revenue_res = db.session.query(db.func.sum(Visit.fee)).filter(Visit.visit_datetime >= today_start).scalar()
+    today_revenue = float(today_revenue_res) if today_revenue_res else 0.0
+
+    doctors = Doctor.query.filter_by(is_active=True).all()
+    active_doctors = len(doctors)
+
+    today_visits_query = Visit.query.filter(Visit.visit_datetime >= today_start)
+    waiting_count = today_visits_query.filter(Visit.status == "Waiting").count()
+    in_consultation_count = today_visits_query.filter(Visit.status == "In Consultation").count()
+    completed_count = today_visits_query.filter(Visit.status == "Completed").count()
+    cancelled_count = today_visits_query.filter(Visit.status == "Cancelled").count()
+
+    doctor_stats = []
+    for doc in doctors:
+        doc_visits_today = Visit.query.filter(
+            Visit.visit_datetime >= today_start,
+            Visit.doctor_name == doc.name
+        ).count()
+        doctor_stats.append({
+            "id": doc.id,
+            "name": doc.name,
+            "specialty": doc.specialty,
+            "fee": doc.fee,
+            "room_number": doc.room_number,
+            "visits_today": doc_visits_today,
+            "next_token": calculate_next_token(doc.name)
+        })
+
+    recent_visits = Visit.query.order_by(Visit.id.desc()).limit(8).all()
+    recent_visits_list = []
+    for v in recent_visits:
+        recent_visits_list.append({
+            "id": v.id,
+            "token_number": v.token_number,
+            "mr_number": v.patient.mr_number if v.patient else "N/A",
+            "patient_name": v.patient.patient_name if v.patient else "Unknown",
+            "age": v.patient.age if v.patient else "",
+            "gender": v.patient.gender if v.patient else "",
+            "doctor_name": v.doctor_name,
+            "department": v.department,
+            "fee": v.fee,
+            "status": v.status,
+            "time": v.visit_datetime.strftime("%I:%M %p") if v.visit_datetime else ""
+        })
+
+    linked_family_count = Patient.query.filter(Patient.primary_patient_id.isnot(None)).count()
+
+    return jsonify({
+        "status": "success",
+        "timestamp": datetime.now().strftime("%I:%M:%S %p"),
+        "kpis": {
+            "total_patients": total_patients,
+            "today_visits": today_visits,
+            "today_revenue": today_revenue,
+            "active_doctors": active_doctors,
+            "waiting_count": waiting_count,
+            "in_consultation_count": in_consultation_count,
+            "completed_count": completed_count,
+            "cancelled_count": cancelled_count,
+            "linked_family_count": linked_family_count
+        },
+        "doctor_stats": doctor_stats,
+        "recent_visits": recent_visits_list
+    })
+
+@app.route("/api/data/patients")
+def api_fetch_patients():
+    """Fetch all stored patients or filtered by search query, limit, sort, and pagination."""
+    search = request.args.get("search", "").strip()
+    limit = request.args.get("limit", "100").strip()
+    sort = request.args.get("sort", "newest").strip()
+
+    query = Patient.query
+    if search:
+        pat = f"%{search}%"
+        cleaned_search = normalize_phone(search)
+        cleaned_pat = f"%{cleaned_search}%" if cleaned_search else pat
+        query = query.filter(
+            (Patient.patient_name.ilike(pat)) |
+            (Patient.mr_number.ilike(pat)) |
+            (Patient.phone_number.ilike(pat)) |
+            (Patient.phone_number.ilike(cleaned_pat)) |
+            (Patient.address.ilike(pat))
+        )
+
+    if sort == "oldest":
+        query = query.order_by(Patient.id.asc())
+    elif sort == "name":
+        query = query.order_by(Patient.patient_name.asc())
+    else:  # newest
+        query = query.order_by(Patient.id.desc())
+
+    total_matching = query.count()
+
+    if limit.lower() != "all":
+        try:
+            lim = int(limit)
+            query = query.limit(lim)
+        except ValueError:
+            query = query.limit(100)
+
+    patients = query.all()
+
+    patient_records = []
+    for p in patients:
+        last_visit_str = p.visits[0].visit_datetime.strftime("%d-%b-%Y") if p.visits else "None"
+        patient_records.append({
+            "id": p.id,
+            "mr_number": p.mr_number,
+            "patient_name": p.patient_name,
+            "age": p.age,
+            "gender": p.gender,
+            "phone_number": p.phone_number,
+            "address": p.address or "",
+            "blood_group": p.blood_group or "N/A",
+            "created_at": p.created_at.strftime("%d-%b-%Y %I:%M %p") if p.created_at else "",
+            "total_visits": len(p.visits),
+            "last_visit": last_visit_str,
+            "is_family_member": bool(p.primary_patient_id),
+            "relation_to_primary": p.relation_to_primary or "",
+            "primary_patient_mr": p.primary_patient.mr_number if p.primary_patient else ""
+        })
+
+    return jsonify({
+        "status": "success",
+        "total_count": total_matching,
+        "fetched_count": len(patient_records),
+        "patients": patient_records
+    })
+
+@app.route("/api/data/daily-visits")
+def api_fetch_daily_visits():
+    """Fetch stored visits data filtered by date, doctor, status, or search query."""
+    date_filter = request.args.get("date", "").strip()
+    doctor_filter = request.args.get("doctor", "").strip()
+    status_filter = request.args.get("status", "").strip()
+    search = request.args.get("search", "").strip()
+    limit = request.args.get("limit", "200").strip()
+
+    query = Visit.query
+
+    target_date_label = "Today"
+    if date_filter.lower() == "all":
+        target_date_label = "All Time"
+    elif date_filter:
+        try:
+            target_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
+            start_of_day = datetime.combine(target_date, datetime.min.time())
+            end_of_day = datetime.combine(target_date, datetime.max.time())
+            query = query.filter(Visit.visit_datetime >= start_of_day, Visit.visit_datetime <= end_of_day)
+            target_date_label = target_date.strftime("%d-%b-%Y")
+        except ValueError:
+            today_start = datetime.combine(date.today(), datetime.min.time())
+            today_end = datetime.combine(date.today(), datetime.max.time())
+            query = query.filter(Visit.visit_datetime >= today_start, Visit.visit_datetime <= today_end)
+    else:
+        today_start = datetime.combine(date.today(), datetime.min.time())
+        today_end = datetime.combine(date.today(), datetime.max.time())
+        query = query.filter(Visit.visit_datetime >= today_start, Visit.visit_datetime <= today_end)
+
+    if doctor_filter and doctor_filter.lower() != "all":
+        query = query.filter(Visit.doctor_name == doctor_filter)
+
+    if status_filter and status_filter.lower() != "all":
+        query = query.filter(Visit.status == status_filter)
+
+    if search:
+        pat = f"%{search}%"
+        query = query.join(Patient).filter(
+            (Patient.patient_name.ilike(pat)) |
+            (Patient.mr_number.ilike(pat)) |
+            (Patient.phone_number.ilike(pat))
+        )
+
+    query = query.order_by(Visit.visit_datetime.desc(), Visit.token_number.desc())
+    total_matching = query.count()
+
+    total_revenue_matching = 0.0
+    all_matching = query.all()
+    for v in all_matching:
+        total_revenue_matching += float(v.fee or 0.0)
+
+    if limit.lower() != "all":
+        try:
+            lim = int(limit)
+            visits = all_matching[:lim]
+        except ValueError:
+            visits = all_matching[:200]
+    else:
+        visits = all_matching
+
+    visit_records = []
+    for v in visits:
+        visit_records.append({
+            "id": v.id,
+            "token_number": v.token_number,
+            "mr_number": v.patient.mr_number if v.patient else "N/A",
+            "patient_name": v.patient.patient_name if v.patient else "Unknown",
+            "age": v.patient.age if v.patient else "",
+            "gender": v.patient.gender if v.patient else "",
+            "phone_number": v.patient.phone_number if v.patient else "",
+            "doctor_name": v.doctor_name,
+            "department": v.department,
+            "fee": v.fee,
+            "status": v.status,
+            "symptoms": v.symptoms or "",
+            "visit_datetime": v.visit_datetime.strftime("%Y-%m-%d %H:%M:%S") if v.visit_datetime else "",
+            "visit_date": v.visit_datetime.strftime("%d-%b-%Y") if v.visit_datetime else "",
+            "visit_time": v.visit_datetime.strftime("%I:%M %p") if v.visit_datetime else "",
+            "print_url": url_for("print_slip", visit_id=v.id)
+        })
+
+    return jsonify({
+        "status": "success",
+        "date_filtered": target_date_label,
+        "total_count": total_matching,
+        "fetched_count": len(visit_records),
+        "total_revenue": total_revenue_matching,
+        "visits": visit_records
+    })
+
+@app.route("/api/data/export-json")
+def api_export_json():
+    """Export complete clinic dataset (all patients and daily visits) as a portable JSON snapshot."""
+    patients = Patient.query.order_by(Patient.id.asc()).all()
+    visits = Visit.query.order_by(Visit.id.asc()).all()
+    doctors = Doctor.query.all()
+    settings = get_clinic_settings()
+
+    patients_data = []
+    for p in patients:
+        patients_data.append({
+            "id": p.id,
+            "mr_number": p.mr_number,
+            "patient_name": p.patient_name,
+            "age": p.age,
+            "gender": p.gender,
+            "phone_number": p.phone_number,
+            "address": p.address,
+            "blood_group": p.blood_group,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "primary_patient_id": p.primary_patient_id,
+            "relation_to_primary": p.relation_to_primary
+        })
+
+    visits_data = []
+    for v in visits:
+        visits_data.append({
+            "id": v.id,
+            "patient_id": v.patient_id,
+            "mr_number": v.patient.mr_number if v.patient else None,
+            "token_number": v.token_number,
+            "doctor_name": v.doctor_name,
+            "department": v.department,
+            "fee": v.fee,
+            "status": v.status,
+            "symptoms": v.symptoms,
+            "visit_datetime": v.visit_datetime.isoformat() if v.visit_datetime else None
+        })
+
+    export_obj = {
+        "clinic_info": {
+            "name": settings.clinic_name,
+            "phone": settings.phone,
+            "address": settings.address,
+            "exported_at": datetime.now().isoformat()
+        },
+        "summary": {
+            "total_patients": len(patients_data),
+            "total_visits": len(visits_data),
+            "total_doctors": len(doctors)
+        },
+        "patients": patients_data,
+        "visits": visits_data
+    }
+
+    response = jsonify(export_obj)
+    response.headers["Content-Disposition"] = f"attachment; filename=clinic_data_backup_{date.today().strftime('%Y%m%d')}.json"
+    response.mimetype = "application/json"
+    return response
+
+@app.route("/visits/export-excel")
+def export_visits_excel():
+    """Export visits dataset to Excel (.xlsx) file with professional medical styling."""
+    date_filter = request.args.get("date", "").strip()
+    doctor_filter = request.args.get("doctor", "").strip()
+
+    query = Visit.query
+    title_suffix = "All_Visits"
+
+    if date_filter and date_filter.lower() != "all":
+        try:
+            target_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
+            start_of_day = datetime.combine(target_date, datetime.min.time())
+            end_of_day = datetime.combine(target_date, datetime.max.time())
+            query = query.filter(Visit.visit_datetime >= start_of_day, Visit.visit_datetime <= end_of_day)
+            title_suffix = f"Visits_{target_date.strftime('%Y%m%d')}"
+        except ValueError:
+            pass
+
+    if doctor_filter and doctor_filter.lower() != "all":
+        query = query.filter(Visit.doctor_name == doctor_filter)
+
+    visits = query.order_by(Visit.visit_datetime.desc(), Visit.token_number.desc()).all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Daily Visits Log"
+    ws.views.sheetView[0].showGridLines = True
+
+    header_fill = PatternFill(start_color="0284C7", end_color="0284C7", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    data_font = Font(name="Calibri", size=10)
+    center_align = Alignment(horizontal="center", vertical="center")
+    left_align = Alignment(horizontal="left", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin", color="E2E8F0"),
+        right=Side(style="thin", color="E2E8F0"),
+        top=Side(style="thin", color="E2E8F0"),
+        bottom=Side(style="thin", color="E2E8F0")
+    )
+    zebra_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+
+    headers = [
+        "Visit ID", "Date", "Time", "Token #", "MR Number", 
+        "Patient Name", "Age", "Gender", "Phone Number", 
+        "Consulting Doctor", "Department", "Symptoms / Purpose", 
+        "Fee (PKR)", "Status"
+    ]
+
+    ws.append(headers)
+    ws.row_dimensions[1].height = 26
+
+    for col_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    total_revenue = 0.0
+    for row_idx, v in enumerate(visits, start=2):
+        fee_val = float(v.fee or 0.0)
+        total_revenue += fee_val
+        row_data = [
+            v.id,
+            v.visit_datetime.strftime("%Y-%m-%d") if v.visit_datetime else "",
+            v.visit_datetime.strftime("%I:%M %p") if v.visit_datetime else "",
+            f"#{v.token_number:02d}",
+            v.patient.mr_number if v.patient else "",
+            v.patient.patient_name if v.patient else "",
+            v.patient.age if v.patient else "",
+            v.patient.gender if v.patient else "",
+            v.patient.phone_number if v.patient else "",
+            v.doctor_name,
+            v.department,
+            v.symptoms,
+            fee_val,
+            v.status
+        ]
+        ws.append(row_data)
+        ws.row_dimensions[row_idx].height = 20
+
+        is_even = (row_idx % 2 == 0)
+        for col_idx in range(1, len(headers) + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            cell.font = data_font
+            cell.border = thin_border
+            if is_even:
+                cell.fill = zebra_fill
+
+            if col_idx in [1, 2, 3, 4, 5, 7, 8, 14]:
+                cell.alignment = center_align
+            elif col_idx == 13:
+                cell.alignment = Alignment(horizontal="right", vertical="center")
+                cell.number_format = "#,##0"
+            else:
+                cell.alignment = left_align
+
+    summary_row = len(visits) + 3
+    ws.cell(row=summary_row, column=1, value="TOTAL VISITS:").font = Font(name="Calibri", size=10, bold=True)
+    ws.cell(row=summary_row, column=2, value=len(visits)).font = Font(name="Calibri", size=10, bold=True)
+    ws.cell(row=summary_row, column=12, value="TOTAL REVENUE:").font = Font(name="Calibri", size=10, bold=True)
+    ws.cell(row=summary_row, column=12).alignment = Alignment(horizontal="right", vertical="center")
+    rev_cell = ws.cell(row=summary_row, column=13, value=total_revenue)
+    rev_cell.font = Font(name="Calibri", size=10, bold=True, color="0369A1")
+    rev_cell.number_format = "Rs. #,##0"
+
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            val_str = str(cell.value or "")
+            if len(val_str) > max_len:
+                max_len = len(val_str)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"{title_suffix}.xlsx"
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename
+    )
 
 @app.route("/master")
 def master():

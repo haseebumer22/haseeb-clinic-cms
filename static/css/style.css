@@ -623,3 +623,84 @@ body {
     font-size: 12px !important;
   }
 }
+
+/* ==========================================
+   DATA FETCHING HUB & LIVE SYNC ANIMATIONS
+   ========================================== */
+
+.live-pulse-dot {
+  width: 9px;
+  height: 9px;
+  background-color: #10b981;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: livePulse 2s infinite;
+}
+
+@keyframes livePulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.spin-animate {
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.data-hub-tab .nav-link {
+  font-weight: 600;
+  color: #64748b;
+  border-radius: 10px;
+  padding: 10px 18px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.data-hub-tab .nav-link.active {
+  background: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+}
+
+.data-hub-tab .nav-link:hover:not(.active) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.api-code-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  background: #0f172a;
+  color: #38bdf8;
+  padding: 4px 10px;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+.data-card-banner {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+}
+
