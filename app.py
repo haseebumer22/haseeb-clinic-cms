@@ -74,8 +74,10 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # Upload Folder Configuration for Clinic Logo
 UPLOAD_FOLDER = os.path.join(app.root_path, "static", "uploads")
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "svg", "webp"}
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+try:
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+except Exception:
+    pass
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 8 MB max
 
