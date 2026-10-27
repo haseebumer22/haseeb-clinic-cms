@@ -88,9 +88,11 @@ function togglePinVisibility() {
         </p>
     </div>
 
-    <div class="d-flex align-items-center gap-2">
         <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left"></i> Reception Desk
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </a>
+        <a href="{{ url_for('reception') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-person-plus-fill"></i> Reception Desk
         </a>
         {% if clinic_settings.pin_required %}
         <form action="{{ url_for('master_lock') }}" method="POST" class="d-inline">

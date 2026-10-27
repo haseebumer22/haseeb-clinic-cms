@@ -21,8 +21,11 @@
     <div class="container py-3 no-print">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 p-3 bg-white rounded-3 shadow-sm border">
             <div class="d-flex align-items-center gap-2">
-                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+                <a href="{{ url_for('reception') }}" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-arrow-left"></i> Back to Reception
+                </a>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm" title="Home Dashboard">
+                    <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
                 <div class="btn-group btn-group-sm" role="group">
                     <button type="button" class="btn btn-primary active" id="btnA5" onclick="toggleSlipFormat('a5')">
@@ -38,7 +41,7 @@
                 <button onclick="window.print()" class="btn btn-primary-clinic btn-sm">
                     <i class="bi bi-printer-fill me-1"></i> Print Slip (Ctrl + P)
                 </button>
-                <a href="{{ url_for('index') }}" class="btn btn-success btn-sm fw-semibold">
+                <a href="{{ url_for('reception') }}" class="btn btn-success btn-sm fw-semibold">
                     <i class="bi bi-person-plus-fill me-1"></i> Next Patient
                 </a>
             </div>

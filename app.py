@@ -200,6 +200,66 @@ def calculate_next_token(doctor_name=None):
 
 @app.route("/")
 def index():
+    """Home Dashboard with KPI metrics, revenue, queue distribution, and doctor workload."""
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    
+    total_patients = Patient.query.count()
+    today_visits = Visit.query.filter(Visit.visit_datetime >= today_start).count()
+    
+    # Revenue today
+    today_revenue_res = db.session.query(db.func.sum(Visit.fee)).filter(Visit.visit_datetime >= today_start).scalar()
+    today_revenue = float(today_revenue_res) if today_revenue_res else 0.0
+
+    doctors = Doctor.query.filter_by(is_active=True).all()
+    active_doctors = len(doctors)
+
+    # Queue status breakdown for today
+    today_visits_query = Visit.query.filter(Visit.visit_datetime >= today_start)
+    waiting_count = today_visits_query.filter(Visit.status == "Waiting").count()
+    in_consultation_count = today_visits_query.filter(Visit.status == "In Consultation").count()
+    completed_count = today_visits_query.filter(Visit.status == "Completed").count()
+    cancelled_count = today_visits_query.filter(Visit.status == "Cancelled").count()
+
+    # Per-doctor stats today
+    doctor_stats = []
+    for doc in doctors:
+        doc_visits_today = Visit.query.filter(
+            Visit.visit_datetime >= today_start,
+            Visit.doctor_name == doc.name
+        ).count()
+        doctor_stats.append({
+            "doctor": doc,
+            "visits_today": doc_visits_today,
+            "next_token": calculate_next_token(doc.name)
+        })
+
+    # Recent visits and patients
+    recent_visits = Visit.query.order_by(Visit.id.desc()).limit(8).all()
+    recent_patients = Patient.query.order_by(Patient.id.desc()).limit(5).all()
+
+    # Family linked count
+    linked_family_count = Patient.query.filter(Patient.primary_patient_id.isnot(None)).count()
+
+    return render_template(
+        "dashboard.html",
+        total_patients=total_patients,
+        today_visits=today_visits,
+        today_revenue=today_revenue,
+        active_doctors=active_doctors,
+        waiting_count=waiting_count,
+        in_consultation_count=in_consultation_count,
+        completed_count=completed_count,
+        cancelled_count=cancelled_count,
+        doctor_stats=doctor_stats,
+        recent_visits=recent_visits,
+        recent_patients=recent_patients,
+        linked_family_count=linked_family_count,
+        today_date=date.today().strftime("%A, %d %B %Y")
+    )
+
+@app.route("/reception")
+def reception():
+    """Reception Desk for new patient registration, token queue, and returning patient bookings."""
     doctors = Doctor.query.filter_by(is_active=True).all()
     today_start = datetime.combine(date.today(), datetime.min.time())
     
@@ -212,7 +272,7 @@ def index():
     default_next_token = doctor_tokens[doctors[0].name] if doctors else 1
 
     return render_template(
-        "index.html",
+        "reception.html",
         doctors=doctors,
         total_patients=total_patients,
         today_visits=today_visits,
@@ -241,7 +301,7 @@ def register():
     is_valid, err_msg, cleaned_data = validate_patient_info(name_raw, age_raw, phone_raw, gender_raw)
     if not is_valid:
         flash(err_msg, "danger")
-        return redirect(url_for("index"))
+        return redirect(url_for("reception"))
 
     name = cleaned_data["name"]
     age = cleaned_data["age"]
@@ -251,7 +311,7 @@ def register():
     doctor = Doctor.query.filter_by(name=doctor_name, is_active=True).first()
     if not doctor:
         flash("Selected doctor is not recognized or is inactive.", "danger")
-        return redirect(url_for("index"))
+        return redirect(url_for("reception"))
 
     # Step 2: Registered Phone Number Validation & Family Check
     # Look for any existing patients already registered with this exact or normalized phone number
@@ -272,7 +332,7 @@ def register():
                 f"Registered phone numbers cannot be used twice. If registering a family member, please check 'Register as Family Member' and select their relationship to {primary.patient_name}.",
                 "warning"
             )
-            return redirect(url_for("index"))
+            return redirect(url_for("reception"))
 
         primary_patient_id = primary.id
         relation_to_primary = relation
@@ -326,7 +386,7 @@ def register():
     except Exception as e:
         db.session.rollback()
         flash(f"Error during registration: {str(e)}", "danger")
-        return redirect(url_for("index"))
+        return redirect(url_for("reception"))
 
 @app.route("/new-visit", methods=["POST"])
 def new_visit():
@@ -338,12 +398,12 @@ def new_visit():
     patient = db.session.get(Patient, patient_id)
     if not patient:
         flash("Patient not found. Please register as a new patient.", "danger")
-        return redirect(url_for("index"))
+        return redirect(url_for("reception"))
 
     doctor = Doctor.query.filter_by(name=doctor_name, is_active=True).first()
     if not doctor:
         flash("Please select a valid doctor.", "danger")
-        return redirect(url_for("index"))
+        return redirect(url_for("reception"))
 
     try:
         # Create visit with doctor-specific OPD number
@@ -366,7 +426,7 @@ def new_visit():
     except Exception as e:
         db.session.rollback()
         flash(f"Error booking visit: {str(e)}", "danger")
-        return redirect(url_for("index"))
+        return redirect(url_for("reception"))
 
 @app.route("/patients")
 def patients():
