@@ -80,6 +80,7 @@ except Exception:
     pass
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024  # 8 MB max
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "svg", "webp"}
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -149,6 +150,14 @@ def init_database():
                     conn.commit()
             except Exception:
                 pass
+
+        # Safe column migration for logo_path to TEXT
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(db.text("ALTER TABLE clinic_settings ALTER COLUMN logo_path TYPE TEXT;"))
+                conn.commit()
+        except Exception:
+            pass
 
         if Doctor.query.count() == 0:
             for doc in DEFAULT_DOCTORS:
@@ -1027,12 +1036,13 @@ def remove_clinic_logo():
         return redirect(url_for("master"))
 
     if settings.logo_path:
-        old_file = os.path.join(app.root_path, "static", settings.logo_path)
-        if os.path.exists(old_file):
-            try:
-                os.remove(old_file)
-            except Exception:
-                pass
+        if not settings.logo_path.startswith("data:"):
+            old_file = os.path.join(app.root_path, "static", settings.logo_path)
+            if os.path.exists(old_file):
+                try:
+                    os.remove(old_file)
+                except Exception:
+                    pass
         settings.logo_path = ""
         db.session.commit()
         flash("Clinic logo removed. Reverted to default clinic symbol.", "info")
