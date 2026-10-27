@@ -57,24 +57,27 @@ body {
 }
 
 .brand-logo-img {
-  max-height: 44px;
-  max-width: 140px;
+  max-height: 48px;
+  max-width: 160px;
   object-fit: contain;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 2px 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s ease;
-}
-
-.brand-logo:hover .brand-logo-img {
-  transform: scale(1.03);
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  display: block;
 }
 
 .slip-logo-img {
-  max-height: 52px;
-  max-width: 110px;
+  max-height: 60px;
+  max-width: 140px;
   object-fit: contain;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  display: block;
 }
 
 .logo-preview-box {
